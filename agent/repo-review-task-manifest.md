@@ -52,6 +52,10 @@ Validates and records an external analyzer artifact in the local ingest ledger.
 
 Reports the selected v1 orchestration model. V1 assembles prompt packets and does not execute analysis, so jobs and `--wait` are deferred.
 
+## Async Strategy
+
+V1 does not ship `repo-review jobs ...` commands. Long-running analysis execution is deferred; agents should use `export-prompt`, run the analyzer externally, then `ingest` the returned artifact.
+
 ### `repo-review claims list|get|affected --json --no-input`
 
 Queries durable claims without manually parsing review-state files. `claims list` supports status/kind/subject filters and bounded output; `claims get` returns one claim with evidence refs; `claims affected` reports impacted claims from an impact plan. Output includes fully qualified claim IDs.

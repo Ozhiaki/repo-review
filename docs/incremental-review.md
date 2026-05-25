@@ -385,6 +385,8 @@ Required behavior:
 - File IO uses `--input <path>`, `--output <path>`, and `-` for stdin/stdout where useful.
 - Long-running execution requires `--wait` plus recoverable jobs; if v1 only assembles prompt packets, jobs are deferred and not advertised.
 
+For the implemented v1 slice, `repo-review delta` is prompt-packet-only. It does not execute analysis, `--wait` is refused, and `agent-context` must not advertise `jobs` commands until a future version ships a durable job ledger.
+
 Exit codes:
 
 - `0`: success

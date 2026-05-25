@@ -228,6 +228,12 @@ def agent_context() -> dict[str, Any]:
         "enums": ENUMS,
         "delivery_schemes": ENUMS["delivery_scheme"],
         "available_profiles": profile_names(),
+        "async_strategy": {
+            "analysis_execution": "deferred",
+            "jobs_supported": False,
+            "wait_supported": False,
+            "reason": "v1 assembles prompt packets and records external analyzer outputs; it does not execute long-running analysis.",
+        },
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
     }
