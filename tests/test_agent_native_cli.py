@@ -147,6 +147,80 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("unaffected_claims", payload)
         self.assertIn("unknowns", payload)
 
+    def test_export_prompt_writes_and_refuses_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            diff_path = tmp_path / "diff.json"
+            impact_path = tmp_path / "impact.json"
+            output_path = tmp_path / "prompt.md"
+            diff = self.run_cli("diff", "--range", "HEAD~1..HEAD", "--json", "--no-input")
+            diff_path.write_text(diff.stdout, encoding="utf-8")
+            impact = self.run_cli(
+                "impact",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--json",
+                "--no-input",
+            )
+            impact_path.write_text(impact.stdout, encoding="utf-8")
+
+            dry_run = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--output",
+                str(output_path),
+                "--dry-run",
+                "--json",
+                "--no-input",
+            )
+            dry_payload = self.assert_json_stdout(dry_run)
+            self.assertTrue(dry_payload["dry_run"])
+            self.assertFalse(output_path.exists())
+
+            written = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                "--output",
+                str(output_path),
+                "--json",
+                "--no-input",
+            )
+            self.assert_json_stdout(written)
+            prompt = output_path.read_text(encoding="utf-8")
+            self.assertIn("Prior Review State", prompt)
+            self.assertIn("Diff Report", prompt)
+            self.assertIn("Impact Plan", prompt)
+            self.assertIn("Conflation Guard", prompt)
+
+            refused = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                "--output",
+                str(output_path),
+                "--json",
+                "--no-input",
+            )
+            diagnostic = self.assert_json_stderr(refused)
+            self.assertEqual(refused.returncode, 5)
+            self.assertIn("--overwrite", diagnostic["valid_values"])
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],

@@ -32,6 +32,10 @@ Returns a bounded structured git diff report with changed files, summary stats, 
 
 Maps changed files from a diff report to claim `watch_paths` from a review state. Output keeps `path_hits`, `trigger_hits`, `impacted_claims`, `unaffected_claims`, and `unknowns` separate.
 
+### `repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input`
+
+Writes a delta trace prompt packet. Existing output files require `--overwrite`; `--dry-run` reports the intended output and required inputs without writing.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.
