@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Minimal repo-review CLI."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+SCHEMA_VERSION = 1
+ROOT = Path(__file__).resolve().parent
+MANIFEST_DIR = ROOT / "agent"
+MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
+
+
+COMMANDS: dict[str, dict[str, Any]] = {
+    "agent-context": {
+        "purpose": "Return machine-readable command and workflow context for agents.",
+        "flags": ["--json"],
+        "output_schema": None,
+    },
+    "skill-path": {
+        "purpose": "Return the local directory containing the repo-review agent task manifest.",
+        "flags": ["--json"],
+        "output_schema": None,
+    },
+}
+
+
+VOCABULARY_POLICY = {
+    "preferred_verbs": ["list", "get", "create", "update", "delete"],
+    "preferred_flags": [
+        "--json",
+        "--force",
+        "--overwrite",
+        "--limit",
+        "--profile",
+        "--wait",
+        "--dry-run",
+        "--no-input",
+    ],
+    "banned_aliases": ["ls", "info", "--format=json", "--skip-confirmations"],
+}
+
+
+ENUMS = {
+    "claim_status": ["active", "superseded", "contested", "invalidated"],
+    "delivery_scheme": ["stdout", "file:<path>"],
+    "exit_code": {
+        "0": "success",
+        "1": "generic failure",
+        "2": "invalid invocation or missing required input",
+        "3": "validation or schema failure",
+        "4": "requested resource not found",
+        "5": "unsafe mutation refused",
+        "6": "external command or git failure",
+        "7": "interrupted or timed out",
+    },
+    "review_mode": ["full", "delta"],
+}
+
+
+def emit_json(payload: dict[str, Any]) -> int:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def fail(message: str, hint: str, code: int = 2) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    print(f"hint: {hint}", file=sys.stderr)
+    return code
+
+
+def require_json(args: list[str]) -> bool:
+    return "--json" in args
+
+
+def agent_context() -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "commands": [
+            {
+                "name": name,
+                "purpose": entry["purpose"],
+                "flags": entry["flags"],
+                "output_schema": entry["output_schema"],
+            }
+            for name, entry in sorted(COMMANDS.items())
+        ],
+        "enums": ENUMS,
+        "delivery_schemes": ENUMS["delivery_scheme"],
+        "available_profiles": [],
+        "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
+        "vocabulary_policy": VOCABULARY_POLICY,
+    }
+
+
+def skill_path() -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "path": str(MANIFEST_DIR),
+        "manifest": str(MANIFEST_PATH),
+    }
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in {"-h", "--help"}:
+        commands = ", ".join(sorted(COMMANDS))
+        return fail("missing command", f"Use one of: {commands}. Example: repo-review agent-context --json")
+
+    command, *args = argv
+    if command not in COMMANDS:
+        commands = ", ".join(sorted(COMMANDS))
+        return fail(f"unknown command '{command}'", f"Use one of: {commands}.")
+
+    if not require_json(args):
+        return fail(
+            f"{command} requires --json in the current CLI slice",
+            f"Run: repo-review {command} --json",
+        )
+
+    if command == "agent-context":
+        return emit_json(agent_context())
+    if command == "skill-path":
+        if not MANIFEST_DIR.is_dir() or not MANIFEST_PATH.is_file():
+            return fail(
+                "skill manifest is missing",
+                f"Expected readable manifest at {MANIFEST_PATH}.",
+                code=4,
+            )
+        return emit_json(skill_path())
+
+    return fail(f"command '{command}' is registered but not implemented", "Check agent-context for shipped commands.", code=1)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
