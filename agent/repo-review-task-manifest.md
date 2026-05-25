@@ -12,6 +12,18 @@ Returns the shipped command registry, supported flags, enum values, delivery sch
 
 Returns the local directory containing this manifest.
 
+### `repo-review status --json`
+
+Returns configured paths, available profiles, and the next relevant review action. Configuration precedence is explicit flag, then environment variable, then selected profile, then default.
+
+### `repo-review profile list|show|save|delete --json`
+
+Manages local profiles stored under `.repo-review/profiles.json`. Mutating profile commands are non-interactive and support `--no-input`; deletion requires `--force`.
+
+### `repo-review feedback "..." --json`
+
+Appends a local feedback entry to `.repo-review/feedback.jsonl` and returns the stored entry id and path.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.
@@ -24,3 +36,4 @@ Returns the local directory containing this manifest.
 - Use `--json` for machine-readable output.
 - Treat stdout as result data and stderr as diagnostics.
 - Do not rely on commands that are absent from `repo-review agent-context --json`.
+- Prefer `--no-input` on mutating commands in automated contexts.

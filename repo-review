@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,9 @@ SCHEMA_VERSION = 1
 ROOT = Path(__file__).resolve().parent
 MANIFEST_DIR = ROOT / "agent"
 MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
+STATE_DIR = ROOT / ".repo-review"
+PROFILES_PATH = STATE_DIR / "profiles.json"
+FEEDBACK_PATH = STATE_DIR / "feedback.jsonl"
 
 
 COMMANDS: dict[str, dict[str, Any]] = {
@@ -21,9 +26,25 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "flags": ["--json"],
         "output_schema": None,
     },
+    "feedback": {
+        "purpose": "Record local feedback about CLI or review workflow friction.",
+        "flags": ["--json", "--no-input"],
+        "output_schema": None,
+    },
+    "profile": {
+        "purpose": "Manage local repo-review profiles.",
+        "flags": ["--json", "--no-input", "--force"],
+        "subcommands": ["list", "show", "save", "delete"],
+        "output_schema": None,
+    },
     "skill-path": {
         "purpose": "Return the local directory containing the repo-review agent task manifest.",
         "flags": ["--json"],
+        "output_schema": None,
+    },
+    "status": {
+        "purpose": "Return configured paths, available profiles, and next relevant review actions.",
+        "flags": ["--json", "--profile", "--repo", "--output", "--analyzer-id", "--lane-vocabulary", "--output-mode"],
         "output_schema": None,
     },
 }
@@ -77,6 +98,50 @@ def require_json(args: list[str]) -> bool:
     return "--json" in args
 
 
+def load_profiles() -> dict[str, dict[str, Any]]:
+    if not PROFILES_PATH.exists():
+        return {}
+    with PROFILES_PATH.open(encoding="utf-8") as handle:
+        data = json.load(handle)
+    profiles = data.get("profiles", {})
+    return profiles if isinstance(profiles, dict) else {}
+
+
+def save_profiles(profiles: dict[str, dict[str, Any]]) -> None:
+    STATE_DIR.mkdir(exist_ok=True)
+    with PROFILES_PATH.open("w", encoding="utf-8") as handle:
+        json.dump({"schema_version": SCHEMA_VERSION, "profiles": profiles}, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def parse_args(args: list[str]) -> tuple[list[str], dict[str, Any]]:
+    positionals: list[str] = []
+    options: dict[str, Any] = {}
+    boolean_flags = {"--json", "--no-input", "--force"}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in boolean_flags:
+            options[arg[2:].replace("-", "_")] = True
+            index += 1
+            continue
+        if arg.startswith("--"):
+            if index + 1 >= len(args) or args[index + 1].startswith("--"):
+                options[arg[2:].replace("-", "_")] = None
+                index += 1
+                continue
+            options[arg[2:].replace("-", "_")] = args[index + 1]
+            index += 2
+            continue
+        positionals.append(arg)
+        index += 1
+    return positionals, options
+
+
+def profile_names() -> list[str]:
+    return sorted(load_profiles())
+
+
 def agent_context() -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -85,13 +150,14 @@ def agent_context() -> dict[str, Any]:
                 "name": name,
                 "purpose": entry["purpose"],
                 "flags": entry["flags"],
+                "subcommands": entry.get("subcommands", []),
                 "output_schema": entry["output_schema"],
             }
             for name, entry in sorted(COMMANDS.items())
         ],
         "enums": ENUMS,
         "delivery_schemes": ENUMS["delivery_scheme"],
-        "available_profiles": [],
+        "available_profiles": profile_names(),
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
     }
@@ -103,6 +169,147 @@ def skill_path() -> dict[str, Any]:
         "path": str(MANIFEST_DIR),
         "manifest": str(MANIFEST_PATH),
     }
+
+
+def resolve_config(options: dict[str, Any]) -> dict[str, Any]:
+    profiles = load_profiles()
+    selected_profile = options.get("profile")
+    profile = profiles.get(selected_profile, {}) if selected_profile else {}
+
+    fields = {
+        "repo_root": {
+            "flag": "repo",
+            "env": "REPO_REVIEW_REPO",
+            "profile": "repo_root",
+            "default": str(ROOT),
+        },
+        "review_output_dir": {
+            "flag": "output",
+            "env": "REPO_REVIEW_OUTPUT",
+            "profile": "review_output_dir",
+            "default": str(ROOT / "reviews"),
+        },
+        "analyzer_id": {
+            "flag": "analyzer_id",
+            "env": "REPO_REVIEW_ANALYZER_ID",
+            "profile": "analyzer_id",
+            "default": "unknown",
+        },
+        "lane_vocabulary_path": {
+            "flag": "lane_vocabulary",
+            "env": "REPO_REVIEW_LANE_VOCABULARY",
+            "profile": "lane_vocabulary_path",
+            "default": None,
+        },
+        "output_mode": {
+            "flag": "output_mode",
+            "env": "REPO_REVIEW_OUTPUT_MODE",
+            "profile": "output_mode",
+            "default": "json",
+        },
+    }
+
+    configured: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    for field, spec in fields.items():
+        flag_name = spec["flag"]
+        if options.get(flag_name) not in (None, ""):
+            configured[field] = options[flag_name]
+            sources[field] = "flag"
+        elif os.environ.get(spec["env"]):
+            configured[field] = os.environ[spec["env"]]
+            sources[field] = "environment"
+        elif profile.get(spec["profile"]) not in (None, ""):
+            configured[field] = profile[spec["profile"]]
+            sources[field] = "profile"
+        else:
+            configured[field] = spec["default"]
+            sources[field] = "default"
+
+    return {
+        "profile": selected_profile,
+        "configured_paths": configured,
+        "sources": sources,
+    }
+
+
+def status(options: dict[str, Any]) -> dict[str, Any]:
+    config = resolve_config(options)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        **config,
+        "available_profiles": profile_names(),
+        "next_actions": [
+            {
+                "action": "run_first_read",
+                "reason": "No review-state discovery is implemented in this CLI slice.",
+                "recommended_command": "repo-review skill-path --json",
+            }
+        ],
+    }
+
+
+def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing profile subcommand", "Use one of: list, show, save, delete."), None
+    subcommand, *rest = positionals
+    profiles = load_profiles()
+
+    if subcommand == "list":
+        return 0, {"schema_version": SCHEMA_VERSION, "profiles": sorted(profiles)}
+
+    if subcommand == "show":
+        if not rest:
+            return fail("missing profile name", "Run: repo-review profile show <name> --json"), None
+        name = rest[0]
+        if name not in profiles:
+            return fail(f"profile '{name}' was not found", f"Use one of: {', '.join(sorted(profiles)) or '(none)'}.", code=4), None
+        return 0, {"schema_version": SCHEMA_VERSION, "name": name, "profile": profiles[name]}
+
+    if subcommand == "save":
+        if not rest:
+            return fail("missing profile name", "Run: repo-review profile save <name> --repo <path> --output <path> --json --no-input"), None
+        name = rest[0]
+        profile = {
+            "repo_root": options.get("repo") or str(ROOT),
+            "review_output_dir": options.get("output") or str(ROOT / "reviews"),
+            "analyzer_id": options.get("analyzer_id") or "unknown",
+            "lane_vocabulary_path": options.get("lane_vocabulary"),
+            "output_mode": options.get("output_mode") or "json",
+        }
+        profiles[name] = profile
+        save_profiles(profiles)
+        return 0, {"schema_version": SCHEMA_VERSION, "name": name, "profile": profile, "path": str(PROFILES_PATH)}
+
+    if subcommand == "delete":
+        if not rest:
+            return fail("missing profile name", "Run: repo-review profile delete <name> --force --json --no-input"), None
+        if not options.get("force"):
+            return fail("unsafe mutation refused", "Add --force to delete a profile.", code=5), None
+        name = rest[0]
+        existed = name in profiles
+        profiles.pop(name, None)
+        save_profiles(profiles)
+        return 0, {"schema_version": SCHEMA_VERSION, "name": name, "deleted": existed, "path": str(PROFILES_PATH)}
+
+    return fail(f"unknown profile subcommand '{subcommand}'", "Use one of: list, show, save, delete."), None
+
+
+def feedback(positionals: list[str]) -> dict[str, Any] | tuple[int, None]:
+    if not positionals:
+        return fail("missing feedback message", "Run: repo-review feedback \"message\" --json --no-input"), None
+    STATE_DIR.mkdir(exist_ok=True)
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    entry_id = "feedback-" + created_at.replace(":", "").replace("+", "Z")
+    entry = {
+        "schema_version": SCHEMA_VERSION,
+        "entry_id": entry_id,
+        "created_at": created_at,
+        "message": " ".join(positionals),
+    }
+    with FEEDBACK_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, sort_keys=True) + "\n")
+    return {"schema_version": SCHEMA_VERSION, "entry_id": entry_id, "path": str(FEEDBACK_PATH)}
 
 
 def main(argv: list[str]) -> int:
@@ -121,8 +328,21 @@ def main(argv: list[str]) -> int:
             f"Run: repo-review {command} --json",
         )
 
+    positionals, options = parse_args(args)
+
     if command == "agent-context":
         return emit_json(agent_context())
+    if command == "feedback":
+        result = feedback(positionals)
+        if isinstance(result, tuple):
+            code, _ = result
+            return code
+        return emit_json(result)
+    if command == "profile":
+        code, payload = profile_command(positionals, options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
     if command == "skill-path":
         if not MANIFEST_DIR.is_dir() or not MANIFEST_PATH.is_file():
             return fail(
@@ -131,6 +351,8 @@ def main(argv: list[str]) -> int:
                 code=4,
             )
         return emit_json(skill_path())
+    if command == "status":
+        return emit_json(status(options))
 
     return fail(f"command '{command}' is registered but not implemented", "Check agent-context for shipped commands.", code=1)
 
