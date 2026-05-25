@@ -64,6 +64,12 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output", "--wait"],
         "output_schema": None,
     },
+    "claims": {
+        "purpose": "Query durable claims from review states and impact plans.",
+        "flags": ["--json", "--no-input", "--review-state", "--impact-plan", "--claim-status", "--kind", "--subject", "--limit"],
+        "subcommands": ["list", "get", "affected"],
+        "output_schema": None,
+    },
     "drift": {
         "purpose": "Generate structured Drift Surfacer outputs.",
         "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--to-review"],
@@ -694,6 +700,88 @@ def delta_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     }
 
 
+def qualify_claim_id(review_state_id: str, claim_id: str) -> str:
+    return claim_id if ":" in claim_id else f"{review_state_id}:{claim_id}"
+
+
+def claims_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing claims subcommand", "Use one of: list, get, affected.", valid_values=["list", "get", "affected"]), None
+    subcommand, *rest = positionals
+
+    if subcommand == "affected":
+        impact_plan, code = load_json_file(options.get("impact_plan"), "impact-plan")
+        if code != 0:
+            return code, None
+        assert impact_plan is not None
+        from_review = impact_plan.get("from_review")
+        affected = [
+            {
+                **claim,
+                "qualified_claim_id": qualify_claim_id(from_review, claim.get("claim_id", "")),
+            }
+            for claim in impact_plan.get("impacted_claims", [])
+        ]
+        return 0, {"schema_version": SCHEMA_VERSION, "from_review": from_review, "affected_claims": affected}
+
+    review_state, code = load_json_file(options.get("review_state"), "review-state")
+    if code != 0:
+        return code, None
+    assert review_state is not None
+    review_state_id = review_state.get("id")
+    claims = list(review_state.get("claims", []))
+
+    if subcommand == "list":
+        if options.get("claim_status"):
+            claims = [claim for claim in claims if claim.get("claim_status") == options["claim_status"]]
+        if options.get("kind"):
+            claims = [claim for claim in claims if claim.get("kind") == options["kind"]]
+        if options.get("subject"):
+            claims = [claim for claim in claims if claim.get("subject", {}).get("ref") == options["subject"]]
+        try:
+            limit = int(options.get("limit") or 20)
+        except ValueError:
+            return fail("invalid --limit", "Use a positive integer for --limit.", valid_values=["1", "20", "50"]), None
+        shown = claims[:limit]
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "review_state": review_state_id,
+            "claims": [
+                {
+                    "qualified_claim_id": qualify_claim_id(review_state_id, claim["id"]),
+                    "id": claim["id"],
+                    "kind": claim.get("kind"),
+                    "claim_status": claim.get("claim_status"),
+                    "subject": claim.get("subject"),
+                    "statement": claim.get("statement"),
+                }
+                for claim in shown
+            ],
+            "truncation": {
+                "limit": limit,
+                "shown": len(shown),
+                "total": len(claims),
+                "truncated": len(claims) > len(shown),
+            },
+        }
+
+    if subcommand == "get":
+        if not rest:
+            return fail("missing claim id", "Run: repo-review claims get <id> --review-state <path> --json --no-input"), None
+        requested = rest[0].split(":", 1)[1] if ":" in rest[0] else rest[0]
+        for claim in claims:
+            if claim.get("id") == requested:
+                return 0, {
+                    "schema_version": SCHEMA_VERSION,
+                    "review_state": review_state_id,
+                    "qualified_claim_id": qualify_claim_id(review_state_id, claim["id"]),
+                    "claim": claim,
+                }
+        return fail("claim was not found", f"No claim '{rest[0]}' exists in review state {review_state_id}.", code=4, error_code="resource_not_found"), None
+
+    return fail(f"unknown claims subcommand '{subcommand}'", "Use one of: list, get, affected.", valid_values=["list", "get", "affected"]), None
+
+
 def drift_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals or positionals[0] != "surface":
         return fail(
@@ -966,6 +1054,11 @@ def main(argv: list[str]) -> int:
         return emit_json(payload or {})
     if command == "delta":
         code, payload = delta_command(options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
+    if command == "claims":
+        code, payload = claims_command(positionals, options)
         if code != 0:
             return code
         return emit_json(payload or {})

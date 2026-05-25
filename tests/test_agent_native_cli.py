@@ -292,6 +292,24 @@ class AgentNativeCliTests(unittest.TestCase):
         diagnostic = self.assert_json_stderr(wait)
         self.assertIn("deferred", diagnostic["message"])
 
+    def test_claims_commands_use_scoped_ids(self) -> None:
+        state = "reviews/oathweaver/delta-2026-05-25/prior-review-state.json"
+        impact = "reviews/oathweaver/delta-2026-05-25/impact-plan.json"
+        listed = self.assert_json_stdout(
+            self.run_cli("claims", "list", "--review-state", state, "--claim-status", "active", "--limit", "1", "--json", "--no-input")
+        )
+        self.assertEqual(listed["truncation"]["limit"], 1)
+        qualified_id = listed["claims"][0]["qualified_claim_id"]
+        self.assertIn(":", qualified_id)
+
+        got = self.assert_json_stdout(self.run_cli("claims", "get", qualified_id, "--review-state", state, "--json", "--no-input"))
+        self.assertEqual(got["qualified_claim_id"], qualified_id)
+        self.assertIn("evidence_refs", got["claim"])
+
+        affected = self.assert_json_stdout(self.run_cli("claims", "affected", "--impact-plan", impact, "--json", "--no-input"))
+        self.assertIn("affected_claims", affected)
+        self.assertIn("qualified_claim_id", affected["affected_claims"][0])
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],
