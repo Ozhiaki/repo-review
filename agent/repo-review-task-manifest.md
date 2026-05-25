@@ -24,6 +24,10 @@ Manages local profiles stored under `.repo-review/profiles.json`. Mutating profi
 
 Appends a local feedback entry to `.repo-review/feedback.jsonl` and returns the stored entry id and path.
 
+### `repo-review diff --range <from>..<to> --json --no-input`
+
+Returns a bounded structured git diff report with changed files, summary stats, classification candidates, and truncation metadata. Use `--path <path>` to narrow and `--limit <n>` to control output size.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.

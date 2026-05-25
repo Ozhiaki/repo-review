@@ -118,6 +118,14 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(diagnostic["code"], "unsafe_mutation_refused")
         self.assertIn("--force", diagnostic["valid_values"])
 
+    def test_diff_command_returns_bounded_json(self) -> None:
+        result = self.run_cli("diff", "--range", "HEAD~1..HEAD", "--limit", "1", "--json", "--no-input")
+        payload = self.assert_json_stdout(result)
+        self.assertIn("changed_files", payload)
+        self.assertIn("summary_stats", payload)
+        self.assertEqual(payload["truncation"]["limit"], 1)
+        self.assertIn("truncated", payload["truncation"])
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],
