@@ -48,3 +48,7 @@ No. The main friction was not distortion; it was verbosity. Claim objects are lo
 ## Substrate Decision
 
 No docs or schema changes are needed from this calibration. The current substrate should proceed to active-package delta work, with one caution: future tooling should generate claim scaffolds because hand-writing full claim objects is verbose.
+
+## Decision Log Update
+
+- 2026-05-25 codex CAL-001: Calibration against `repo-review` confirmed the Phase 0 claim/evidence substrate is usable without docs or schema changes. (reason: claims preserved prose judgment, evidence refs were inspectable, watch paths and invalidation triggers were concrete, and Drift Surfacer entries could reference claims directly.)
