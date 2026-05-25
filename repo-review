@@ -88,9 +88,21 @@ def emit_json(payload: dict[str, Any]) -> int:
     return 0
 
 
-def fail(message: str, hint: str, code: int = 2) -> int:
-    print(f"error: {message}", file=sys.stderr)
-    print(f"hint: {hint}", file=sys.stderr)
+def fail(
+    message: str,
+    hint: str,
+    code: int = 2,
+    error_code: str = "invalid_invocation",
+    valid_values: list[str] | None = None,
+) -> int:
+    diagnostic: dict[str, Any] = {
+        "code": error_code,
+        "message": message,
+        "hint": hint,
+    }
+    if valid_values is not None:
+        diagnostic["valid_values"] = valid_values
+    print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
     return code
 
 
@@ -251,7 +263,8 @@ def status(options: dict[str, Any]) -> dict[str, Any]:
 
 def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
-        return fail("missing profile subcommand", "Use one of: list, show, save, delete."), None
+        values = ["list", "show", "save", "delete"]
+        return fail("missing profile subcommand", "Use one of: list, show, save, delete.", valid_values=values), None
     subcommand, *rest = positionals
     profiles = load_profiles()
 
@@ -263,7 +276,14 @@ def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[in
             return fail("missing profile name", "Run: repo-review profile show <name> --json"), None
         name = rest[0]
         if name not in profiles:
-            return fail(f"profile '{name}' was not found", f"Use one of: {', '.join(sorted(profiles)) or '(none)'}.", code=4), None
+            values = sorted(profiles)
+            return fail(
+                f"profile '{name}' was not found",
+                f"Use one of: {', '.join(values) or '(none)'}.",
+                code=4,
+                error_code="resource_not_found",
+                valid_values=values,
+            ), None
         return 0, {"schema_version": SCHEMA_VERSION, "name": name, "profile": profiles[name]}
 
     if subcommand == "save":
@@ -285,14 +305,21 @@ def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[in
         if not rest:
             return fail("missing profile name", "Run: repo-review profile delete <name> --force --json --no-input"), None
         if not options.get("force"):
-            return fail("unsafe mutation refused", "Add --force to delete a profile.", code=5), None
+            return fail(
+                "unsafe mutation refused",
+                "Add --force to delete a profile.",
+                code=5,
+                error_code="unsafe_mutation_refused",
+                valid_values=["--force"],
+            ), None
         name = rest[0]
         existed = name in profiles
         profiles.pop(name, None)
         save_profiles(profiles)
         return 0, {"schema_version": SCHEMA_VERSION, "name": name, "deleted": existed, "path": str(PROFILES_PATH)}
 
-    return fail(f"unknown profile subcommand '{subcommand}'", "Use one of: list, show, save, delete."), None
+    values = ["list", "show", "save", "delete"]
+    return fail(f"unknown profile subcommand '{subcommand}'", "Use one of: list, show, save, delete.", valid_values=values), None
 
 
 def feedback(positionals: list[str]) -> dict[str, Any] | tuple[int, None]:
@@ -315,12 +342,16 @@ def feedback(positionals: list[str]) -> dict[str, Any] | tuple[int, None]:
 def main(argv: list[str]) -> int:
     if not argv or argv[0] in {"-h", "--help"}:
         commands = ", ".join(sorted(COMMANDS))
-        return fail("missing command", f"Use one of: {commands}. Example: repo-review agent-context --json")
+        return fail(
+            "missing command",
+            f"Use one of: {commands}. Example: repo-review agent-context --json",
+            valid_values=sorted(COMMANDS),
+        )
 
     command, *args = argv
     if command not in COMMANDS:
         commands = ", ".join(sorted(COMMANDS))
-        return fail(f"unknown command '{command}'", f"Use one of: {commands}.")
+        return fail(f"unknown command '{command}'", f"Use one of: {commands}.", valid_values=sorted(COMMANDS))
 
     if not require_json(args):
         return fail(
@@ -349,6 +380,7 @@ def main(argv: list[str]) -> int:
                 "skill manifest is missing",
                 f"Expected readable manifest at {MANIFEST_PATH}.",
                 code=4,
+                error_code="resource_not_found",
             )
         return emit_json(skill_path())
     if command == "status":
