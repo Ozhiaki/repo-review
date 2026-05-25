@@ -126,6 +126,27 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(payload["truncation"]["limit"], 1)
         self.assertIn("truncated", payload["truncation"])
 
+    def test_impact_command_separates_output_buckets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            diff_path = Path(tmp) / "diff.json"
+            diff = self.run_cli("diff", "--range", "HEAD~1..HEAD", "--json", "--no-input")
+            diff_path.write_text(diff.stdout, encoding="utf-8")
+            result = self.run_cli(
+                "impact",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--json",
+                "--no-input",
+            )
+        payload = self.assert_json_stdout(result)
+        self.assertIn("path_hits", payload)
+        self.assertIn("trigger_hits", payload)
+        self.assertIn("impacted_claims", payload)
+        self.assertIn("unaffected_claims", payload)
+        self.assertIn("unknowns", payload)
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],

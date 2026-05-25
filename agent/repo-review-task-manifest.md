@@ -28,6 +28,10 @@ Appends a local feedback entry to `.repo-review/feedback.jsonl` and returns the 
 
 Returns a bounded structured git diff report with changed files, summary stats, classification candidates, and truncation metadata. Use `--path <path>` to narrow and `--limit <n>` to control output size.
 
+### `repo-review impact --review-state <path> --diff-report <path> --json --no-input`
+
+Maps changed files from a diff report to claim `watch_paths` from a review state. Output keeps `path_hits`, `trigger_hits`, `impacted_claims`, `unaffected_claims`, and `unknowns` separate.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.

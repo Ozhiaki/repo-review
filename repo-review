@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timezone
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,11 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "purpose": "Return a bounded structured git diff report.",
         "flags": ["--json", "--no-input", "--range", "--path", "--limit"],
         "output_schema": "schemas/diff_report.schema.json",
+    },
+    "impact": {
+        "purpose": "Map a diff report to likely affected review claims.",
+        "flags": ["--json", "--no-input", "--review-state", "--diff-report"],
+        "output_schema": "schemas/impact_plan.schema.json",
     },
     "profile": {
         "purpose": "Manage local repo-review profiles.",
@@ -342,6 +348,127 @@ def diff_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     }
 
 
+def load_json_file(path_value: str | None, label: str) -> tuple[dict[str, Any] | None, int]:
+    if not path_value:
+        return None, fail(
+            f"missing required --{label}",
+            f"Run with --{label} <path>.",
+            valid_values=[f"--{label}"],
+        )
+    path = Path(path_value)
+    if not path.is_file():
+        return None, fail(
+            f"{label} file was not found",
+            f"Expected a readable JSON file at {path}.",
+            code=4,
+            error_code="resource_not_found",
+        )
+    try:
+        with path.open(encoding="utf-8") as handle:
+            return json.load(handle), 0
+    except json.JSONDecodeError as exc:
+        return None, fail(
+            f"{label} is not valid JSON",
+            f"{exc.msg} at line {exc.lineno}, column {exc.colno}.",
+            code=3,
+            error_code="validation_failed",
+        )
+
+
+def path_matches(pattern: str, path: str) -> bool:
+    if fnmatch(path, pattern):
+        return True
+    if "*" not in pattern and not pattern.endswith("/") and path.startswith(pattern.rstrip("/") + "/"):
+        return True
+    return False
+
+
+def impact_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    review_state, code = load_json_file(options.get("review_state"), "review-state")
+    if code != 0:
+        return code, None
+    diff_report, code = load_json_file(options.get("diff_report"), "diff-report")
+    if code != 0:
+        return code, None
+    assert review_state is not None
+    assert diff_report is not None
+
+    claims = review_state.get("claims", [])
+    changed_files = diff_report.get("changed_files", [])
+    path_hits: list[dict[str, Any]] = []
+    impacted_ids: set[str] = set()
+    matched_files: set[str] = set()
+
+    for claim in claims:
+        claim_id = claim.get("id")
+        watch_paths = claim.get("watch_paths", [])
+        matches: list[str] = []
+        for changed in changed_files:
+            changed_path = changed.get("path", "")
+            if any(path_matches(pattern, changed_path) for pattern in watch_paths):
+                matches.append(changed_path)
+                matched_files.add(changed_path)
+        if matches and claim_id:
+            path_hits.append({"claim_id": claim_id, "matched_paths": sorted(set(matches))})
+            impacted_ids.add(claim_id)
+
+    trigger_hits = diff_report.get("trigger_hits", [])
+    for hit in trigger_hits:
+        claim_id = hit.get("claim_id")
+        if claim_id:
+            impacted_ids.add(claim_id)
+
+    impacted_claims: list[dict[str, Any]] = []
+    for claim_id in sorted(impacted_ids):
+        surfaced_by = []
+        if any(hit["claim_id"] == claim_id for hit in path_hits):
+            surfaced_by.append("path_hit")
+        if any(hit.get("claim_id") == claim_id for hit in trigger_hits):
+            surfaced_by.append("trigger_hit")
+        impacted_claims.append(
+            {
+                "claim_id": claim_id,
+                "impact": "unknown",
+                "surfaced_by": surfaced_by or ["unknown"],
+                "reason": "Claim surfaced by " + ", ".join(surfaced_by or ["unknown mapping"]) + ".",
+                "required_followup_passes": ["trace"],
+            }
+        )
+
+    unaffected_claims = [
+        {
+            "claim_id": claim.get("id"),
+            "reason": "No changed file matched watch_paths and no trigger hit was supplied.",
+        }
+        for claim in claims
+        if claim.get("id") not in impacted_ids
+    ]
+
+    unknowns = list(diff_report.get("unknowns", []))
+    for changed in changed_files:
+        changed_path = changed.get("path")
+        if changed_path and changed_path not in matched_files:
+            unknowns.append(
+                {
+                    "changed_file": changed_path,
+                    "classification": ",".join(changed.get("classifications", [])),
+                    "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed.",
+                }
+            )
+
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "from_review": review_state.get("id"),
+        "to_repo_commit": diff_report.get("range", {}).get("to_commit"),
+        "diff_range": diff_report.get("range", {}).get("expression"),
+        "path_hits": path_hits,
+        "trigger_hits": trigger_hits,
+        "impacted_claims": impacted_claims,
+        "unaffected_claims": unaffected_claims,
+        "unknowns": unknowns,
+    }
+
+
 def resolve_config(options: dict[str, Any]) -> dict[str, Any]:
     profiles = load_profiles()
     selected_profile = options.get("profile")
@@ -533,6 +660,11 @@ def main(argv: list[str]) -> int:
             code, _ = result
             return code
         return emit_json(result)
+    if command == "impact":
+        code, payload = impact_command(options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
     if command == "profile":
         code, payload = profile_command(positionals, options)
         if code != 0:
