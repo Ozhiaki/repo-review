@@ -221,6 +221,47 @@ class AgentNativeCliTests(unittest.TestCase):
             self.assertEqual(refused.returncode, 5)
             self.assertIn("--overwrite", diagnostic["valid_values"])
 
+    def test_drift_surface_outputs_delta_drift_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            diff_path = Path(tmp) / "diff.json"
+            impact_path = Path(tmp) / "impact.json"
+            diff = self.run_cli("diff", "--range", "HEAD~1..HEAD", "--json", "--no-input")
+            diff_path.write_text(diff.stdout, encoding="utf-8")
+            impact = self.run_cli(
+                "impact",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--json",
+                "--no-input",
+            )
+            impact_path.write_text(impact.stdout, encoding="utf-8")
+            result = self.run_cli(
+                "drift",
+                "surface",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                "--to-review",
+                "repo-review-delta-test",
+                "--json",
+                "--no-input",
+            )
+        payload = self.assert_json_stdout(result)
+        self.assertEqual(payload["from_review"], "repo-review-calibration-2026-05-25")
+        self.assertEqual(payload["to_review"], "repo-review-delta-test")
+        self.assertIn("produced_by_analyzer", payload)
+        self.assertIn("new_snapshot_entries", payload)
+        self.assertIn("invalidated_snapshot_entries", payload)
+        self.assertIn("strengthened_fascination_seeds", payload)
+        self.assertIn("weakened_fascination_seeds", payload)
+        self.assertIn("new_fascination_seeds", payload)
+        self.assertIn("lane_impacts", payload)
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],

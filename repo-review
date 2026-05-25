@@ -48,6 +48,12 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "flags": ["--json", "--no-input", "--review-state", "--diff-report"],
         "output_schema": "schemas/impact_plan.schema.json",
     },
+    "drift": {
+        "purpose": "Generate structured Drift Surfacer outputs.",
+        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--to-review"],
+        "subcommands": ["surface"],
+        "output_schema": "schemas/delta_drift.schema.json",
+    },
     "profile": {
         "purpose": "Manage local repo-review profiles.",
         "flags": ["--json", "--no-input", "--force"],
@@ -582,6 +588,91 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     }
 
 
+def drift_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals or positionals[0] != "surface":
+        return fail(
+            "missing or unsupported drift subcommand",
+            "Run: repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input",
+            valid_values=["surface"],
+        ), None
+    review_state, code = load_json_file(options.get("review_state"), "review-state")
+    if code != 0:
+        return code, None
+    diff_report, code = load_json_file(options.get("diff_report"), "diff-report")
+    if code != 0:
+        return code, None
+    impact_plan, code = load_json_file(options.get("impact_plan"), "impact-plan")
+    if code != 0:
+        return code, None
+    assert review_state is not None
+    assert diff_report is not None
+    assert impact_plan is not None
+
+    from_review = review_state.get("id")
+    to_review = options.get("to_review") or f"{from_review}-delta"
+    impacted = impact_plan.get("impacted_claims", [])
+    unknowns = impact_plan.get("unknowns", [])
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "repo": review_state.get("repo", {}).get("name"),
+        "from_review": from_review,
+        "to_review": to_review,
+        "diff_range": diff_report.get("range", {}).get("expression"),
+        "produced_by_analyzer": {
+            "id": "repo-review-cli",
+            "kind": "tool",
+            "model": None,
+            "tool_context": "repo-review drift surface",
+        },
+        "new_snapshot_entries": [
+            {
+                "reason": "Diff contains unknown changed files that may require new review observations.",
+                "source_claim": item.get("claim_id"),
+                "changed_file": item.get("changed_file"),
+            }
+            for item in unknowns
+        ],
+        "invalidated_snapshot_entries": [
+            {
+                "source_claim": item.get("claim_id"),
+                "reason": item.get("reason", "Impacted claim may be invalidated by the diff."),
+            }
+            for item in impacted
+            if item.get("impact") == "possibly_invalidated"
+        ],
+        "strengthened_fascination_seeds": [
+            {
+                "source_claim": item.get("claim_id"),
+                "reason": item.get("reason", "Impacted claim may be strengthened by the diff."),
+            }
+            for item in impacted
+            if item.get("impact") == "possibly_strengthened"
+        ],
+        "weakened_fascination_seeds": [
+            {
+                "source_claim": item.get("claim_id"),
+                "reason": item.get("reason", "Impacted claim needs delta review; treating as possibly weakened until analyzed."),
+            }
+            for item in impacted
+            if item.get("impact") in {"possibly_weakened", "unknown"}
+        ],
+        "new_fascination_seeds": [
+            {
+                "reason": "Unknown changed material may produce a new fascination seed after analyst review.",
+                "changed_file": item.get("changed_file"),
+            }
+            for item in unknowns
+        ],
+        "lane_impacts": [
+            {
+                "lane": "repo-review",
+                "impact": "unknown" if impacted or unknowns else "unchanged",
+                "reason": "Delta impact is derived from the impact plan and awaits analyzer review.",
+            }
+        ],
+    }
+
+
 def resolve_config(options: dict[str, Any]) -> dict[str, Any]:
     profiles = load_profiles()
     selected_profile = options.get("profile")
@@ -764,6 +855,11 @@ def main(argv: list[str]) -> int:
         return emit_json(agent_context())
     if command == "diff":
         code, payload = diff_command(options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
+    if command == "drift":
+        code, payload = drift_command(positionals, options)
         if code != 0:
             return code
         return emit_json(payload or {})

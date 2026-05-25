@@ -36,6 +36,10 @@ Maps changed files from a diff report to claim `watch_paths` from a review state
 
 Writes a delta trace prompt packet. Existing output files require `--overwrite`; `--dry-run` reports the intended output and required inputs without writing.
 
+### `repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input`
+
+Generates a `delta_drift` JSON object tied to the prior review state and diff range. The output can carry new, invalidated, strengthened, and weakened Drift Surfacer material.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.
