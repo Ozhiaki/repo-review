@@ -20,6 +20,7 @@ MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
 STATE_DIR = ROOT / ".repo-review"
 PROFILES_PATH = STATE_DIR / "profiles.json"
 FEEDBACK_PATH = STATE_DIR / "feedback.jsonl"
+INGEST_PATH = STATE_DIR / "ingested.jsonl"
 
 
 COMMANDS: dict[str, dict[str, Any]] = {
@@ -47,6 +48,21 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "purpose": "Map a diff report to likely affected review claims.",
         "flags": ["--json", "--no-input", "--review-state", "--diff-report"],
         "output_schema": "schemas/impact_plan.schema.json",
+    },
+    "next": {
+        "purpose": "Return the next actionable repo-review workflow step.",
+        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output"],
+        "output_schema": None,
+    },
+    "ingest": {
+        "purpose": "Validate and record an external analyzer artifact.",
+        "flags": ["--json", "--no-input", "--input", "--kind"],
+        "output_schema": None,
+    },
+    "delta": {
+        "purpose": "Return v1 delta orchestration metadata and recommended prompt-packet command.",
+        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output", "--wait"],
+        "output_schema": None,
     },
     "drift": {
         "purpose": "Generate structured Drift Surfacer outputs.",
@@ -165,7 +181,7 @@ def save_profiles(profiles: dict[str, dict[str, Any]]) -> None:
 def parse_args(args: list[str]) -> tuple[list[str], dict[str, Any]]:
     positionals: list[str] = []
     options: dict[str, Any] = {}
-    boolean_flags = {"--json", "--no-input", "--force", "--overwrite", "--dry-run"}
+    boolean_flags = {"--json", "--no-input", "--force", "--overwrite", "--dry-run", "--wait"}
     index = 0
     while index < len(args):
         arg = args[index]
@@ -598,6 +614,86 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     }
 
 
+def required_delta_inputs(options: dict[str, Any]) -> tuple[list[str], list[str]]:
+    required = ["review-state", "diff-report", "impact-plan", "output"]
+    missing = [name for name in required if not options.get(name.replace("-", "_"))]
+    return required, missing
+
+
+def next_command(options: dict[str, Any]) -> dict[str, Any]:
+    required, missing = required_delta_inputs(options)
+    output = options.get("output") or "reviews/<repo>/delta-<date>/delta-trace-prompt.md"
+    if missing:
+        next_action = "collect_delta_inputs"
+        recommended = "repo-review diff --range <from>..<to> --json --no-input > diff-report.json"
+    else:
+        next_action = "export_delta_prompt"
+        recommended = (
+            "repo-review export-prompt --pass delta-trace "
+            f"--review-state {options['review_state']} --diff-report {options['diff_report']} "
+            f"--impact-plan {options['impact_plan']} --output {output} --json --no-input"
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "next_action": next_action,
+        "required_inputs": required,
+        "missing_inputs": missing,
+        "write_output_to": output,
+        "recommended_command": recommended,
+    }
+
+
+def ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    input_path_value = options.get("input")
+    kind = options.get("kind") or "external-analyzer-output"
+    if not input_path_value:
+        return fail("missing required --input", "Run: repo-review ingest --input <path> --json --no-input", valid_values=["--input"]), None
+    input_path = Path(input_path_value)
+    if not input_path.is_file():
+        return fail("input artifact was not found", f"Expected readable file at {input_path}.", code=4, error_code="resource_not_found"), None
+    text = input_path.read_text(encoding="utf-8")
+    if kind == "delta-review" and "delta_review:" not in text:
+        return fail(
+            "delta-review artifact is missing structured appendix",
+            "Expected a delta_review: block in the analyzer output.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=["delta-review"],
+        ), None
+    STATE_DIR.mkdir(exist_ok=True)
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    entry_id = "ingest-" + created_at.replace(":", "").replace("+", "Z")
+    entry = {
+        "schema_version": SCHEMA_VERSION,
+        "entry_id": entry_id,
+        "created_at": created_at,
+        "kind": kind,
+        "input": str(input_path),
+        "bytes": input_path.stat().st_size,
+    }
+    with INGEST_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, sort_keys=True) + "\n")
+    return 0, {"schema_version": SCHEMA_VERSION, "entry_id": entry_id, "path": str(INGEST_PATH), "record": entry}
+
+
+def delta_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if options.get("wait"):
+        return fail(
+            "analysis execution is deferred in v1",
+            "repo-review delta assembles prompt-packet workflow metadata; do not use --wait until jobs ship.",
+            code=2,
+            valid_values=["omit --wait"],
+        ), None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "orchestration_model": "prompt-packet-only",
+        "executes_analysis": False,
+        "jobs_required": False,
+        "jobs_deferred": True,
+        **next_command(options),
+    }
+
+
 def drift_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals or positionals[0] != "surface":
         return fail(
@@ -868,6 +964,11 @@ def main(argv: list[str]) -> int:
         if code != 0:
             return code
         return emit_json(payload or {})
+    if command == "delta":
+        code, payload = delta_command(options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
     if command == "drift":
         code, payload = drift_command(positionals, options)
         if code != 0:
@@ -889,6 +990,13 @@ def main(argv: list[str]) -> int:
         if code != 0:
             return code
         return emit_json(payload or {})
+    if command == "ingest":
+        code, payload = ingest_command(options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
+    if command == "next":
+        return emit_json(next_command(options))
     if command == "profile":
         code, payload = profile_command(positionals, options)
         if code != 0:

@@ -263,6 +263,35 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("new_fascination_seeds", payload)
         self.assertIn("lane_impacts", payload)
 
+    def test_next_ingest_delta_commands(self) -> None:
+        next_payload = self.assert_json_stdout(self.run_cli("next", "--json", "--no-input"))
+        self.assertIn("next_action", next_payload)
+        self.assertIn("required_inputs", next_payload)
+        self.assertIn("missing_inputs", next_payload)
+        self.assertIn("recommended_command", next_payload)
+
+        ingest = self.run_cli(
+            "ingest",
+            "--input",
+            "reviews/oathweaver/delta-2026-05-25/delta-review.md",
+            "--kind",
+            "delta-review",
+            "--json",
+            "--no-input",
+        )
+        ingest_payload = self.assert_json_stdout(ingest)
+        self.assertIn("entry_id", ingest_payload)
+        self.assertTrue(Path(ingest_payload["path"]).is_file())
+
+        delta = self.run_cli("delta", "--json", "--no-input")
+        delta_payload = self.assert_json_stdout(delta)
+        self.assertFalse(delta_payload["executes_analysis"])
+        self.assertTrue(delta_payload["jobs_deferred"])
+
+        wait = self.run_cli("delta", "--wait", "--json", "--no-input")
+        diagnostic = self.assert_json_stderr(wait)
+        self.assertIn("deferred", diagnostic["message"])
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],

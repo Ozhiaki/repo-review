@@ -40,6 +40,18 @@ Writes a delta trace prompt packet. Existing output files require `--overwrite`;
 
 Generates a `delta_drift` JSON object tied to the prior review state and diff range. The output can carry new, invalidated, strengthened, and weakened Drift Surfacer material.
 
+### `repo-review next --json --no-input`
+
+Returns the next actionable workflow step, required inputs, missing inputs, intended output path, and a recommended command.
+
+### `repo-review ingest --input <path> --kind delta-review --json --no-input`
+
+Validates and records an external analyzer artifact in the local ingest ledger.
+
+### `repo-review delta --json --no-input`
+
+Reports the selected v1 orchestration model. V1 assembles prompt packets and does not execute analysis, so jobs and `--wait` are deferred.
+
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.
