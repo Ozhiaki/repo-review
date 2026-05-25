@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "id": "repo-review-calibration-2026-05-25",
+  "repo": {
+    "name": "repo-review",
+    "root": "/Users/dave/p/repo-review/repo-review",
+    "remote": "https://github.com/TheEditor/repo-review.git",
+    "commit": "77b7bd3"
+  },
+  "mode": "full",
+  "created_at": "2026-05-25T16:00:00-04:00",
+  "produced_by_analyzer": {
+    "id": "codex-2026-05-25-calibration",
+    "kind": "llm",
+    "model": "gpt-5",
+    "tool_context": "codex-desktop",
+    "prompt_set_version": "repo-review-v2",
+    "notes": "Calibration review against repo-review itself after initial incremental substrate work."
+  },
+  "pass_outputs": [
+    {
+      "pass_id": "calibration-full",
+      "path": "reviews/repo-review/calibration-2026-05-25/review.md",
+      "output_kind": "prose-with-yaml-appendix",
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-calibration",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "first_read.central_abstraction",
+      "kind": "central_abstraction",
+      "subject": {
+        "type": "repo",
+        "ref": "."
+      },
+      "statement": "repo-review is organized around staged interpretive passes that preserve analyzer blindness between review phases.",
+      "evidence_refs": [
+        {
+          "id": "ev-readme-pass-order",
+          "file": "README.md",
+          "locator": "How to run a review",
+          "quote": "Critical: present the passes to the analyzer one at a time."
+        },
+        {
+          "id": "ev-root-pass-files",
+          "file": "README.md",
+          "locator": "The Passes",
+          "quote": "The series is designed to be run in order."
+        }
+      ],
+      "confidence": "high",
+      "claim_status": "active",
+      "depends_on_claims": [],
+      "related_claims": [
+        "trace.staged_blindness_obligation"
+      ],
+      "watch_paths": [
+        "README.md",
+        "01-first-read.md",
+        "02-discounted-artifact.md",
+        "03-trace.md",
+        "04-twin.md",
+        "05-lift.md"
+      ],
+      "invalidation_triggers": [
+        "A runner exposes later passes before prerequisite passes are complete.",
+        "Pass files stop declaring prerequisites or review order."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-calibration",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      },
+      "contested_by": []
+    },
+    {
+      "id": "discounted_artifact.incremental_substrate",
+      "kind": "methodology",
+      "subject": {
+        "type": "artifact",
+        "ref": "docs/incremental-review.md"
+      },
+      "statement": "The incremental-review design turns reviews into durable claim/evidence state rather than treating them as prose-only reports.",
+      "evidence_refs": [
+        {
+          "id": "ev-incremental-review-state",
+          "file": "docs/incremental-review.md",
+          "locator": "Review State",
+          "quote": "A review state is the durable record that a future delta review reads."
+        },
+        {
+          "id": "ev-claim-rubric",
+          "file": "docs/incremental-review.md",
+          "locator": "Claim Rubric",
+          "quote": "A claim is a stable, falsifiable assertion about the repo."
+        }
+      ],
+      "confidence": "high",
+      "claim_status": "active",
+      "depends_on_claims": [
+        "first_read.central_abstraction"
+      ],
+      "related_claims": [
+        "trace.staged_blindness_obligation"
+      ],
+      "watch_paths": [
+        "docs/incremental-review.md",
+        "schemas/*.schema.json",
+        "tools/validate_pass_output.py"
+      ],
+      "invalidation_triggers": [
+        "Schemas or CLI commands drop claim/evidence identity from review artifacts.",
+        "Delta review output updates prose without updating claims."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-calibration",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      },
+      "contested_by": []
+    },
+    {
+      "id": "trace.staged_blindness_obligation",
+      "kind": "obligation",
+      "subject": {
+        "type": "repo",
+        "ref": "."
+      },
+      "statement": "repo-review must preserve staged blindness while making pass outputs machine-inspectable.",
+      "evidence_refs": [
+        {
+          "id": "ev-frontmatter-prerequisites",
+          "file": "03-trace.md",
+          "locator": "frontmatter prerequisites",
+          "quote": "prerequisites:"
+        },
+        {
+          "id": "ev-frontmatter-linter",
+          "file": "tools/lint_pass_frontmatter.py",
+          "locator": "REQUIRED_KEYS",
+          "quote": "REQUIRED_KEYS"
+        },
+        {
+          "id": "ev-agent-context",
+          "file": "repo-review",
+          "locator": "agent_context",
+          "quote": "commands"
+        }
+      ],
+      "confidence": "medium",
+      "claim_status": "active",
+      "depends_on_claims": [
+        "first_read.central_abstraction"
+      ],
+      "related_claims": [
+        "discounted_artifact.incremental_substrate"
+      ],
+      "watch_paths": [
+        "repo-review",
+        "tools/lint_pass_frontmatter.py",
+        "tools/validate_pass_output.py",
+        "tests/test_agent_native_cli.py",
+        "*.md"
+      ],
+      "invalidation_triggers": [
+        "A CLI command runs or exports all pass prompts without preserving prerequisite order.",
+        "Machine-readable output stops carrying pass identity or prerequisite metadata."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-calibration",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": "Operational enforcement is partial until orchestration exists."
+      },
+      "contested_by": []
+    },
+    {
+      "id": "lift.delta_as_finding",
+      "kind": "extractable",
+      "subject": {
+        "type": "extractable",
+        "ref": "delta-as-finding"
+      },
+      "statement": "Delta review should treat changed interpretation as a finding distinct from changed subject matter.",
+      "evidence_refs": [
+        {
+          "id": "ev-conflation-guard",
+          "file": "docs/incremental-review.md",
+          "locator": "Conflation Guard",
+          "quote": "Delta review must keep these concepts separate."
+        }
+      ],
+      "confidence": "medium",
+      "claim_status": "active",
+      "depends_on_claims": [
+        "discounted_artifact.incremental_substrate"
+      ],
+      "related_claims": [],
+      "watch_paths": [
+        "docs/incremental-review.md",
+        "schemas/impact_plan.schema.json",
+        "schemas/delta_drift.schema.json"
+      ],
+      "invalidation_triggers": [
+        "Delta output can update a claim without labeling subject drift versus analysis drift."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-calibration",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": "Candidate extractable; not yet validated on Oathweaver or OverCR."
+      },
+      "contested_by": []
+    }
+  ],
+  "drift_surface": {
+    "snapshot_entries": [
+      {
+        "source_claim": "first_read.central_abstraction",
+        "summary": "repo-review's main object is staged interpretive attention, not generic code review automation."
+      },
+      {
+        "source_claim": "trace.staged_blindness_obligation",
+        "summary": "Operational enforcement is partial: metadata and tests exist, full orchestration does not."
+      }
+    ],
+    "fascination_seeds": [
+      {
+        "seed_id": "staged_blindness_as_method",
+        "source_claim": "first_read.central_abstraction",
+        "summary": "Prompt sequencing can be treated as a control surface for analysis quality."
+      },
+      {
+        "seed_id": "delta_as_finding",
+        "source_claim": "lift.delta_as_finding",
+        "summary": "A delta review can surface changed interpretation as an explicit result."
+      }
+    ]
+  },
+  "limits": [
+    "self-review target may overfit to repo-review vocabulary",
+    "source-only review",
+    "no external package calibration yet",
+    "operational orchestration remains partial"
+  ]
+}
