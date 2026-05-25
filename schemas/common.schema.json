@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/common.schema.json",
+  "title": "repo-review common schema definitions",
+  "$defs": {
+    "analyzerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "model", "tool_context"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["human", "hybrid", "llm", "tool"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "tool_context": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_set_version": {
+          "type": ["string", "null"]
+        },
+        "notes": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "repoRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "root", "remote"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "remote": {
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "locator"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quote": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "claimStatus": {
+      "type": "string",
+      "enum": ["active", "superseded", "contested", "invalidated"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "claimRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    }
+  }
+}

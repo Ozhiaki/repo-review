@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/claim.schema.json",
+  "title": "repo-review claim",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "kind",
+    "subject",
+    "statement",
+    "evidence_refs",
+    "confidence",
+    "claim_status",
+    "depends_on_claims",
+    "related_claims",
+    "watch_paths",
+    "invalidation_triggers",
+    "produced_by_analyzer",
+    "contested_by"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.schema.json#/$defs/claimRef"
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "ref"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["repo", "file", "symbol", "pass_output", "artifact", "extractable"]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidenceRef"
+      }
+    },
+    "confidence": {
+      "$ref": "common.schema.json#/$defs/confidence"
+    },
+    "claim_status": {
+      "$ref": "common.schema.json#/$defs/claimStatus"
+    },
+    "depends_on_claims": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/claimRef"
+      },
+      "uniqueItems": true
+    },
+    "related_claims": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/claimRef"
+      },
+      "uniqueItems": true
+    },
+    "watch_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "invalidation_triggers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "produced_by_analyzer": {
+      "$ref": "common.schema.json#/$defs/analyzerIdentity"
+    },
+    "contested_by": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["review_state", "claim_id", "reason"],
+        "properties": {
+          "review_state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

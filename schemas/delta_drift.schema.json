@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/delta_drift.schema.json",
+  "title": "repo-review delta Drift Surfacer output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repo",
+    "from_review",
+    "to_review",
+    "diff_range",
+    "produced_by_analyzer",
+    "new_snapshot_entries",
+    "invalidated_snapshot_entries",
+    "strengthened_fascination_seeds",
+    "weakened_fascination_seeds",
+    "new_fascination_seeds",
+    "lane_impacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "repo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from_review": {
+      "type": "string",
+      "minLength": 1
+    },
+    "to_review": {
+      "type": "string",
+      "minLength": 1
+    },
+    "diff_range": {
+      "type": "string",
+      "minLength": 1
+    },
+    "produced_by_analyzer": {
+      "$ref": "common.schema.json#/$defs/analyzerIdentity"
+    },
+    "new_snapshot_entries": {
+      "$ref": "#/$defs/driftEntries"
+    },
+    "invalidated_snapshot_entries": {
+      "$ref": "#/$defs/driftEntries"
+    },
+    "strengthened_fascination_seeds": {
+      "$ref": "#/$defs/driftEntries"
+    },
+    "weakened_fascination_seeds": {
+      "$ref": "#/$defs/driftEntries"
+    },
+    "new_fascination_seeds": {
+      "$ref": "#/$defs/driftEntries"
+    },
+    "lane_impacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lane", "impact", "reason"],
+        "properties": {
+          "lane": {
+            "type": "string",
+            "minLength": 1
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["new", "strengthened", "weakened", "invalidated", "unchanged", "unknown"]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "driftEntries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["reason"],
+        "properties": {
+          "source_claim": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "seed_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

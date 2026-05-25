@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/diff_report.schema.json",
+  "title": "repo-review diff report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repo",
+    "range",
+    "produced_by_analyzer",
+    "changed_files",
+    "unknowns"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "repo": {
+      "$ref": "common.schema.json#/$defs/repoRef"
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_commit", "to_commit", "expression"],
+      "properties": {
+        "from_commit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_commit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "produced_by_analyzer": {
+      "$ref": "common.schema.json#/$defs/analyzerIdentity"
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "status", "additions", "deletions", "classifications", "summary"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["added", "modified", "deleted", "renamed", "copied", "type_changed", "unknown"]
+          },
+          "additions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deletions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "classifications": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/impact_plan.schema.json",
+  "title": "repo-review impact plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "from_review",
+    "to_repo_commit",
+    "diff_range",
+    "path_hits",
+    "trigger_hits",
+    "impacted_claims",
+    "unaffected_claims",
+    "unknowns"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "from_review": {
+      "type": "string",
+      "minLength": 1
+    },
+    "to_repo_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "diff_range": {
+      "type": "string",
+      "minLength": 1
+    },
+    "path_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "matched_paths"],
+        "properties": {
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "matched_paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "trigger_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "matched_trigger", "evaluator"],
+        "properties": {
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "matched_trigger": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evaluator": {
+            "$ref": "common.schema.json#/$defs/analyzerIdentity"
+          }
+        }
+      }
+    },
+    "impacted_claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "impact", "surfaced_by", "reason", "required_followup_passes"],
+        "properties": {
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["possibly_strengthened", "possibly_weakened", "possibly_invalidated", "possibly_new", "unknown"]
+          },
+          "surfaced_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["path_hit", "trigger_hit", "unknown"]
+            },
+            "uniqueItems": true
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_followup_passes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "unaffected_claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "reason"],
+        "properties": {
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason"],
+        "properties": {
+          "changed_file": {
+            "type": "string"
+          },
+          "claim_id": {
+            "$ref": "common.schema.json#/$defs/claimRef"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

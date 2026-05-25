@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/review_state.schema.json",
+  "title": "repo-review review state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "repo",
+    "mode",
+    "created_at",
+    "produced_by_analyzer",
+    "pass_outputs",
+    "claims",
+    "drift_surface",
+    "limits"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/repoRef"
+        },
+        {
+          "required": ["commit"]
+        }
+      ]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["full", "delta"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "produced_by_analyzer": {
+      "$ref": "common.schema.json#/$defs/analyzerIdentity"
+    },
+    "pass_outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pass_id", "path", "output_kind", "produced_by_analyzer"],
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "output_kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "produced_by_analyzer": {
+            "$ref": "common.schema.json#/$defs/analyzerIdentity"
+          }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "claim.schema.json"
+      }
+    },
+    "drift_surface": {
+      "type": ["object", "null"]
+    },
+    "limits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  }
+}
