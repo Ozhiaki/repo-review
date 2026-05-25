@@ -1,0 +1,48 @@
+{
+  "diff_range": "c05e1ca8bfe352a1c2c7065cdebadddf2a1fd257..59b0337ff006d00f87579f8b65077726404d022a",
+  "from_review": "oathweaver-full-2026-05-11",
+  "impacted_claims": [
+    {
+      "claim_id": "first_read.local_ai_systems_problem",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    },
+    {
+      "claim_id": "trace.hard_fail_artifact_obligation",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    }
+  ],
+  "path_hits": [
+    {
+      "claim_id": "first_read.local_ai_systems_problem",
+      "matched_paths": [
+        "SourceCode/shared_tools/ollama_client.py",
+        "tests/test_ollama_wait_for_available.py"
+      ]
+    },
+    {
+      "claim_id": "trace.hard_fail_artifact_obligation",
+      "matched_paths": [
+        "SourceCode/shared_tools/ollama_client.py"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "to_repo_commit": "59b0337ff006d00f87579f8b65077726404d022a",
+  "trigger_hits": [],
+  "unaffected_claims": [],
+  "unknowns": []
+}

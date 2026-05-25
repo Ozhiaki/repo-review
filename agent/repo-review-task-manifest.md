@@ -26,7 +26,7 @@ Appends a local feedback entry to `.repo-review/feedback.jsonl` and returns the 
 
 ### `repo-review diff --range <from>..<to> --json --no-input`
 
-Returns a bounded structured git diff report with changed files, summary stats, classification candidates, and truncation metadata. Use `--path <path>` to narrow and `--limit <n>` to control output size.
+Returns a bounded structured git diff report with changed files, summary stats, classification candidates, and truncation metadata. Use `--repo <path>` for a target checkout, `--path <path>` to narrow, and `--limit <n>` to control output size.
 
 ### `repo-review impact --review-state <path> --diff-report <path> --json --no-input`
 

@@ -119,8 +119,9 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("--force", diagnostic["valid_values"])
 
     def test_diff_command_returns_bounded_json(self) -> None:
-        result = self.run_cli("diff", "--range", "HEAD~1..HEAD", "--limit", "1", "--json", "--no-input")
+        result = self.run_cli("diff", "--repo", str(ROOT), "--range", "HEAD~1..HEAD", "--limit", "1", "--json", "--no-input")
         payload = self.assert_json_stdout(result)
+        self.assertEqual(payload["repo"]["root"], str(ROOT))
         self.assertIn("changed_files", payload)
         self.assertIn("summary_stats", payload)
         self.assertEqual(payload["truncation"]["limit"], 1)

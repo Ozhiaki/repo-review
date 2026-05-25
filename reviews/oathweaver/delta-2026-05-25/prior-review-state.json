@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "id": "oathweaver-full-2026-05-11",
+  "repo": {
+    "name": "oathweaver",
+    "root": "/Users/dave/p/farm/oathweaver/oathweaver",
+    "remote": "https://github.com/TheEditor/oathweaver.git",
+    "commit": "c05e1ca8bfe352a1c2c7065cdebadddf2a1fd257"
+  },
+  "mode": "full",
+  "created_at": "2026-05-11T02:15:44-04:00",
+  "produced_by_analyzer": {
+    "id": "codex-2026-05-11-oathweaver-review",
+    "kind": "llm",
+    "model": "gpt-5",
+    "tool_context": "codex-desktop",
+    "prompt_set_version": "repo-review-v2",
+    "notes": "Structured from existing Oathweaver first-read, discounted-artifact, trace, and lift review outputs."
+  },
+  "pass_outputs": [
+    {
+      "pass_id": "first-read",
+      "path": "/Users/dave/p/farm/oathweaver/oathweaver-first-read.md",
+      "output_kind": "prose-with-yaml-appendix",
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-11-oathweaver-review",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      }
+    },
+    {
+      "pass_id": "trace",
+      "path": "/Users/dave/p/farm/oathweaver/oathweaver-trace.md",
+      "output_kind": "prose-with-yaml-appendix",
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-11-oathweaver-review",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "first_read.local_ai_systems_problem",
+      "kind": "central_abstraction",
+      "subject": {
+        "type": "repo",
+        "ref": "."
+      },
+      "statement": "Oathweaver treats local AI quality as a systems problem solved with routing gates, contracts, memory, trace ledgers, smoke tests, replay bundles, and promotion policies.",
+      "evidence_refs": [
+        {
+          "id": "ev-first-read-local-ai",
+          "file": "/Users/dave/p/farm/oathweaver/oathweaver-first-read.md",
+          "locator": "What This Author Understands That Most Don't",
+          "quote": "local AI quality is a systems problem more than a prompting problem"
+        }
+      ],
+      "confidence": "high",
+      "claim_status": "active",
+      "depends_on_claims": [],
+      "related_claims": [
+        "trace.hard_fail_artifact_obligation"
+      ],
+      "watch_paths": [
+        "SourceCode/shared_tools/ollama_client.py",
+        "SourceCode/shared_tools/inference_router.py",
+        "SourceCode/configs/model_routing.json",
+        "tests/test_ollama_wait_for_available.py"
+      ],
+      "invalidation_triggers": [
+        "Ollama or local model routing changes bypass explicit user/runtime configuration.",
+        "Tests stop covering local model availability or routing behavior."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-delta-slice",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      },
+      "contested_by": []
+    },
+    {
+      "id": "trace.hard_fail_artifact_obligation",
+      "kind": "obligation",
+      "subject": {
+        "type": "repo",
+        "ref": "."
+      },
+      "statement": "A web_app build must either be correct-by-construction or hard-fail before delivery, never silently broken.",
+      "evidence_refs": [
+        {
+          "id": "ev-trace-hard-fail",
+          "file": "/Users/dave/p/farm/oathweaver/oathweaver-trace.md",
+          "locator": "Obligation Chosen",
+          "quote": "a `web_app` build must either be correct-by-construction or hard-fail before delivery"
+        }
+      ],
+      "confidence": "medium",
+      "claim_status": "active",
+      "depends_on_claims": [],
+      "related_claims": [
+        "first_read.local_ai_systems_problem"
+      ],
+      "watch_paths": [
+        "SourceCode/agents_make/",
+        "tests/agents_make/",
+        "SourceCode/shared_tools/ollama_client.py"
+      ],
+      "invalidation_triggers": [
+        "Runtime or model availability behavior changes make generated-artifact gates environment-sensitive.",
+        "Tests fail to enforce a route or model setting that the generated-artifact pipeline depends on."
+      ],
+      "produced_by_analyzer": {
+        "id": "codex-2026-05-25-delta-slice",
+        "kind": "llm",
+        "model": "gpt-5",
+        "tool_context": "codex-desktop",
+        "prompt_set_version": "repo-review-v2",
+        "notes": null
+      },
+      "contested_by": []
+    }
+  ],
+  "drift_surface": {
+    "snapshot_entries": [
+      {
+        "source_claim": "first_read.local_ai_systems_problem",
+        "summary": "Oathweaver's local-model quality strategy depends on explicit routing, tests, and operational gates."
+      }
+    ],
+    "fascination_seeds": [
+      {
+        "seed_id": "local_model_contracts",
+        "source_claim": "first_read.local_ai_systems_problem",
+        "summary": "Local model behavior becomes reliable when configuration and availability are explicit and tested."
+      }
+    ]
+  },
+  "limits": [
+    "Prior state is structured from existing prose review outputs.",
+    "Delta slice uses HEAD~1..HEAD as the demonstration range."
+  ]
+}

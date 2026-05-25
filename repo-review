@@ -40,7 +40,7 @@ COMMANDS: dict[str, dict[str, Any]] = {
     },
     "diff": {
         "purpose": "Return a bounded structured git diff report.",
-        "flags": ["--json", "--no-input", "--range", "--path", "--limit"],
+        "flags": ["--json", "--no-input", "--range", "--repo", "--path", "--limit"],
         "output_schema": "schemas/diff_report.schema.json",
     },
     "impact": {
@@ -219,10 +219,10 @@ def skill_path() -> dict[str, Any]:
     }
 
 
-def run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
+def run_git(args: list[str], cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
-        cwd=ROOT,
+        cwd=cwd,
         text=True,
         capture_output=True,
         timeout=10,
@@ -266,9 +266,19 @@ def diff_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if limit < 1:
         return fail("invalid --limit", "Use a positive integer for --limit.", valid_values=["1", "10", "50"]), None
 
+    repo_root = Path(options.get("repo") or ROOT).expanduser().resolve()
+    if not (repo_root / ".git").exists():
+        return fail(
+            "repo path is not a git checkout",
+            "Pass --repo <path> pointing at a git repository.",
+            code=4,
+            error_code="resource_not_found",
+            valid_values=["--repo"],
+        ), None
+
     path_filter = options.get("path")
     pathspec = ["--", path_filter] if path_filter else []
-    status_result = run_git(["diff", "--name-status", diff_range, *pathspec])
+    status_result = run_git(["diff", "--name-status", diff_range, *pathspec], cwd=repo_root)
     if status_result.returncode != 0:
         return fail(
             "git diff --name-status failed",
@@ -276,7 +286,7 @@ def diff_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
             code=6,
             error_code="external_command_failed",
         ), None
-    numstat_result = run_git(["diff", "--numstat", diff_range, *pathspec])
+    numstat_result = run_git(["diff", "--numstat", diff_range, *pathspec], cwd=repo_root)
     if numstat_result.returncode != 0:
         return fail(
             "git diff --numstat failed",
@@ -327,9 +337,9 @@ def diff_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     return 0, {
         "schema_version": SCHEMA_VERSION,
         "repo": {
-            "name": ROOT.name,
-            "root": str(ROOT),
-            "remote": run_git(["remote", "get-url", "origin"]).stdout.strip() or None,
+            "name": repo_root.name,
+            "root": str(repo_root),
+            "remote": run_git(["remote", "get-url", "origin"], cwd=repo_root).stdout.strip() or None,
         },
         "range": {
             "expression": diff_range,

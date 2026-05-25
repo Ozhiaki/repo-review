@@ -1,0 +1,54 @@
+{
+  "changed_files": [
+    {
+      "additions": 1,
+      "classifications": [
+        "core-logic"
+      ],
+      "deletions": 1,
+      "path": "SourceCode/shared_tools/ollama_client.py",
+      "status": "modified",
+      "summary": "modified file with 1 additions and 1 deletions"
+    },
+    {
+      "additions": 46,
+      "classifications": [
+        "tests-only"
+      ],
+      "deletions": 0,
+      "path": "tests/test_ollama_wait_for_available.py",
+      "status": "modified",
+      "summary": "modified file with 46 additions and 0 deletions"
+    }
+  ],
+  "produced_by_analyzer": {
+    "id": "repo-review-cli",
+    "kind": "tool",
+    "model": null,
+    "tool_context": "repo-review diff"
+  },
+  "range": {
+    "expression": "c05e1ca8bfe352a1c2c7065cdebadddf2a1fd257..59b0337ff006d00f87579f8b65077726404d022a",
+    "from_commit": "c05e1ca8bfe352a1c2c7065cdebadddf2a1fd257",
+    "to_commit": "59b0337ff006d00f87579f8b65077726404d022a"
+  },
+  "repo": {
+    "name": "oathweaver",
+    "remote": "https://github.com/Ozhiaki/oathweaver.git",
+    "root": "/Users/dave/p/farm/oathweaver/oathweaver"
+  },
+  "schema_version": 1,
+  "summary_stats": {
+    "additions": 47,
+    "deletions": 1,
+    "files_changed": 2
+  },
+  "truncation": {
+    "limit": 50,
+    "narrowing_hints": [],
+    "shown": 2,
+    "total": 2,
+    "truncated": false
+  },
+  "unknowns": []
+}

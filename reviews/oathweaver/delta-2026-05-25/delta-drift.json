@@ -1,0 +1,34 @@
+{
+  "diff_range": "c05e1ca8bfe352a1c2c7065cdebadddf2a1fd257..59b0337ff006d00f87579f8b65077726404d022a",
+  "from_review": "oathweaver-full-2026-05-11",
+  "invalidated_snapshot_entries": [],
+  "lane_impacts": [
+    {
+      "impact": "strengthened",
+      "lane": "repo-review",
+      "reason": "The delta strengthens the local-model contract claim by preserving explicit think settings and adding focused tests."
+    }
+  ],
+  "new_fascination_seeds": [],
+  "new_snapshot_entries": [],
+  "produced_by_analyzer": {
+    "id": "codex-2026-05-25-delta-slice",
+    "kind": "hybrid",
+    "model": "gpt-5",
+    "tool_context": "repo-review drift surface plus analyzer review"
+  },
+  "repo": "oathweaver",
+  "schema_version": 1,
+  "strengthened_fascination_seeds": [
+    {
+      "reason": "Explicit Ollama think settings are now preserved instead of being overwritten by reasoning-model defaults.",
+      "source_claim": "first_read.local_ai_systems_problem"
+    },
+    {
+      "reason": "Focused tests make local model behavior less environment-sensitive.",
+      "source_claim": "trace.hard_fail_artifact_obligation"
+    }
+  ],
+  "to_review": "oathweaver-delta-2026-05-25",
+  "weakened_fascination_seeds": []
+}
