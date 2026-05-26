@@ -497,3 +497,33 @@ Questions to answer:
 - Did any schema requirement distort the review enough that the substrate should change?
 
 Calibration findings may revise this document, schemas, or CLI behavior. Revisions should be recorded as decision-log entries in the relevant plan or tracking issue, including cases where a baseline assumption is kept after explicit review.
+
+## Self-Review Hygiene
+
+Changes to `repo-review` itself should use the same incremental machinery when the change could affect review behavior, not only when the code changes. This is routine maintenance review, separate from calibration.
+
+Run a routine self-review delta when a change touches any of these surfaces:
+
+- pass prompts (`01-first-read.md` through `05-lift.md`)
+- `docs/incremental-review.md`
+- schemas under `schemas/`
+- CLI behavior or command registry in `repo-review`
+- agent-facing workflow documentation under `agent/`
+- validators or tests that change accepted artifact shape
+- review examples or fixtures that become normative examples
+
+Small typo fixes, comment-only edits, tracker-only updates, and README wording that does not change workflow semantics do not require a self-review delta. If a change is ambiguous, record why it was skipped in the relevant issue notes.
+
+Routine self-review should produce or update these artifacts under `reviews/repo-review/`:
+
+- a bounded `diff-report.json` for the repo-review change
+- an `impact-plan.json` against the latest repo-review review state
+- a `delta-trace-prompt.md` packet exported by the CLI
+- a human-authored `delta-review.md` or equivalent analyzer output
+- a `delta-drift.json` when Drift Surfacer material changes
+- an updated or newly versioned `review-state.json` if durable claims change
+- friction notes when the CLI or substrate blocks the workflow
+
+Routine self-review is for regression and drift control: it asks whether the current change invalidates, weakens, strengthens, or extends existing claims about the framework.
+
+Calibration review is different. Calibration tests the method itself. Use calibration when schema shape, claim rubric, staged prompt semantics, analyzer identity requirements, or CLI contract assumptions are being evaluated. Calibration may legitimately revise the framework based on what the review process reveals. Routine self-review should not rewrite the rubric unless it discovers a concrete flaw that deserves its own tracked change.

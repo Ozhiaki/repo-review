@@ -61,6 +61,19 @@ not execute long-running analysis itself, and it does not ship a job queue.
 Agents should export a prompt packet, run the analyzer externally, then ingest
 the returned artifact.
 
+### Self-Review
+
+Changes to `repo-review` prompts, schemas, validators, CLI behavior, or
+agent-facing workflow docs should usually receive a repo-review delta review
+against the latest `reviews/repo-review/` state. Routine self-review produces
+the same maintenance artifacts as other delta reviews: diff report, impact
+plan, prompt packet, analyzer delta review, optional delta drift output, and an
+updated review state when durable claims change.
+
+Calibration is separate. Use calibration when testing the method or substrate
+itself; use routine self-review when checking whether a framework change
+affects existing claims.
+
 ## Minimal Human Workflow
 
 Run the prompts manually when starting a new review:
