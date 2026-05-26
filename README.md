@@ -1,84 +1,27 @@
 # repo-review
 
-`repo-review` is a staged review framework for producing deep, taste-oriented
-analyses of codebases, plus a small agent-native CLI for maintaining those
-reviews over time.
+`repo-review` helps you produce and maintain deep codebase reviews.
 
-It is not a code review bot, vulnerability scanner, or automatic judgment
-engine. The prompts do the interpretive work; the CLI preserves enough
-structure that later review passes and delta reviews can be routed, compared,
-and resumed without rereading everything from scratch.
+Use it when a normal code review is too narrow. It is built for questions like:
 
-## What Is Implemented
+- What does this repo believe?
+- Where does the author's taste show up in the code?
+- Which claims are actually enforced?
+- What changed since the last serious review?
+- Which earlier review claims need another look?
 
-- Five staged review prompts: `01-first-read.md`, `02-discounted-artifact.md`,
-  `03-trace.md`, `04-twin.md`, and `05-lift.md`.
-- YAML frontmatter and structured `pass_output:` appendices for pass outputs.
-- Validators for pass frontmatter and first-read pass output.
-- Incremental review documentation in `docs/incremental-review.md`.
-- Validated reusable pattern notes in `docs/extractable-patterns.md`.
-- JSON schemas for claims, review state, diff reports, impact plans, delta
-  drift, and pass output.
-- A repo-local `repo-review` CLI that exposes machine-readable discovery,
-  profile/status helpers, bounded git diff reporting, impact planning, delta
-  prompt packet export, claims queries, drift surfacing, artifact ingestion,
-  and feedback capture.
-- Calibration and delta review artifacts under `reviews/`.
-- Helper templates for recurring review decisions under `templates/`.
+The repo contains two things:
 
-The agent-facing command registry is discoverable at runtime:
+- A staged prompt sequence for full reviews.
+- A small CLI for maintaining review state and running delta reviews later.
 
-```bash
-./repo-review agent-context --json
-```
+The CLI does not replace judgment. It helps preserve enough structure that a
+future human or agent can resume the review without starting from scratch.
 
-## Review Modes
+## Start Here
 
-### Full Review
-
-A full review runs the prompt sequence against a repo state. Present the prompts
-to the analyzer one at a time. Later prompts intentionally depend on earlier
-blind spots, so showing the whole sequence up front contaminates the result.
-
-1. Run `01-first-read.md`.
-2. Run `02-discounted-artifact.md` against the first-read output.
-3. Run `03-trace.md`; it may terminate early if the repo has no load-bearing
-   obligation.
-4. Optionally run `04-twin.md` with a selected adjacent repo.
-5. Optionally run `05-lift.md`; it may terminate early if nothing extractable
-   survives outside the repo.
-
-Each pass produces prose for a human reader and a structured YAML appendix for
-tooling.
-
-### Delta Review
-
-A delta review starts from a prior `review-state.json`, a bounded git diff, and
-an impact plan. It does not rerun the whole review. It asks what changed, which
-prior claims are affected, and whether the change creates subject drift,
-analysis drift, or both.
-
-The implemented v1 CLI assembles prompt packets and structured context. It does
-not execute long-running analysis itself, and it does not ship a job queue.
-Agents should export a prompt packet, run the analyzer externally, then ingest
-the returned artifact.
-
-### Self-Review
-
-Changes to `repo-review` prompts, schemas, validators, CLI behavior, or
-agent-facing workflow docs should usually receive a repo-review delta review
-against the latest `reviews/repo-review/` state. Routine self-review produces
-the same maintenance artifacts as other delta reviews: diff report, impact
-plan, prompt packet, analyzer delta review, optional delta drift output, and an
-updated review state when durable claims change.
-
-Calibration is separate. Use calibration when testing the method or substrate
-itself; use routine self-review when checking whether a framework change
-affects existing claims.
-
-## Minimal Human Workflow
-
-Run the prompts manually when starting a new review:
+For a first review, read the prompts in order and give them to the analyzer one
+at a time:
 
 ```bash
 less 01-first-read.md
@@ -86,32 +29,22 @@ less 02-discounted-artifact.md
 less 03-trace.md
 ```
 
-Validate structured pass output when an artifact includes a `pass_output:`
-appendix:
+Then optionally continue with:
 
 ```bash
-python3 tools/validate_pass_output.py path/to/first-read.md --pass-id first-read
+less 04-twin.md
+less 05-lift.md
 ```
 
-Inspect existing examples:
-
-```bash
-ls reviews/repo-review/calibration-2026-05-25
-ls reviews/oathweaver/delta-2026-05-25
-```
-
-## Minimal Agent Workflow
-
-Start with runtime discovery rather than hard-coding command assumptions:
+For an agent or script, start by asking the repo what it supports:
 
 ```bash
 ./repo-review agent-context --json
-./repo-review skill-path --json
 ./repo-review status --json
 ```
 
-For a delta review, generate a diff report, map it to prior claims, and export a
-delta trace prompt packet:
+For an incremental review of a changed repo, generate a diff report, map it to
+prior claims, and export a prompt packet:
 
 ```bash
 ./repo-review diff --repo /path/to/target --range HEAD~1..HEAD --json --no-input > diff-report.json
@@ -130,87 +63,154 @@ delta trace prompt packet:
   --json --no-input
 ```
 
-Query claims directly when deciding what a change touches:
-
-```bash
-./repo-review claims list \
-  --review-state reviews/oathweaver/delta-2026-05-25/prior-review-state.json \
-  --json --no-input
-
-./repo-review claims affected \
-  --impact-plan impact-plan.json \
-  --json --no-input
-```
-
-Record an analyzer-produced delta review artifact after the external analysis
-returns:
+That packet is for an external analyzer. After the analyzer returns a delta
+review artifact, record it:
 
 ```bash
 ./repo-review ingest --input delta-review.md --kind delta-review --json --no-input
 ```
 
-## CLI Surface
+## What You Get
 
-Implemented commands:
+A full review produces prose plus a structured appendix. The prose is for the
+curator. The structured appendix gives later tools stable handles for pass
+identity, findings, evidence, and follow-up work.
 
-- `agent-context --json`: returns command registry, flags, enums, delivery
-  schemes, async strategy, manifest path, and vocabulary policy.
-- `skill-path --json`: returns the agent manifest directory.
-- `status --json`: reports configured paths, profiles, and next review action.
-- `profile list|show|save|delete --json`: manages local profiles.
-- `feedback "..." --json --no-input`: appends local workflow feedback.
-- `diff --range <from>..<to> --json --no-input`: emits a bounded structured
-  git diff report.
-- `impact --review-state <path> --diff-report <path> --json --no-input`: maps
-  changed paths to claims and uncertainty buckets.
-- `export-prompt --pass delta-trace ... --json --no-input`: writes or returns a
-  delta trace prompt packet.
-- `drift surface ... --json --no-input`: emits structured delta Drift Surfacer
-  material.
-- `next --json --no-input`: reports the next actionable workflow step.
-- `ingest --input <path> --kind delta-review --json --no-input`: validates and
-  records an external analyzer artifact.
-- `delta --json --no-input`: reports v1 orchestration metadata.
-- `aggregate --review-state <path> --review-state <path> --json --no-input`:
-  summarizes multiple review states and optional drift outputs without merging
-  claim identity.
-- `claims list|get|affected --json --no-input`: queries review-state claims.
+An incremental review works from these artifacts:
 
-All shipped commands require `--json`. Automated contexts should also use
-`--no-input` on mutating commands. Stdout is result data; stderr is reserved for
-JSON diagnostics.
+- `review-state.json`: durable claims, evidence refs, analyzer identity, watch
+  paths, and invalidation triggers.
+- `diff-report.json`: bounded summary of changed files.
+- `impact-plan.json`: candidate claim impacts and unknowns.
+- `delta-trace-prompt.md`: analyzer-ready prompt packet.
+- `delta-review.md`: analyzer-written update.
+- `delta-drift.json`: structured summary of strengthened, weakened, new, or
+  invalidated review material.
 
-## Artifacts
+Examples live under:
 
-Primary artifacts:
+```bash
+reviews/repo-review/calibration-2026-05-25
+reviews/oathweaver/delta-2026-05-25
+```
 
-- Pass prompts: `01-first-read.md` through `05-lift.md`.
-- Review outputs: human prose plus structured `pass_output:` YAML appendices.
-- Review state: claim/evidence graphs with analyzer identity.
-- Diff reports: bounded JSON summaries of changed files and classifications.
-- Impact plans: path hits, trigger hits, impacted claims, unaffected claims, and
-  unknowns.
-- Delta trace prompt packets: analyzer-ready prompt context for delta review.
-- Delta review artifacts: analyzer-written updates to prior claims.
-- Delta drift reports: structured Drift Surfacer output for changed review
-  material.
-- Ingest ledger: local JSONL records under `.repo-review/`.
-- Helper templates: reusable checklists for affected claims, invalidation
-  triggers, drift summaries, contested claims, twin selection, trace obligation
-  choice, and lift seed evaluation.
+## The Full Review Passes
 
-Artifact delivery starts local. `export-prompt` supports normal file output,
-`--deliver=stdout`, and `--deliver=file:<path>`. Existing files require
-`--overwrite`. Webhook delivery is explicitly deferred in v1.
+| Order | Prompt | Purpose |
+| --- | --- | --- |
+| 01 | `01-first-read.md` | Capture the first serious read, including blind spots. |
+| 02 | `02-discounted-artifact.md` | Re-read the artifact the first pass underweighted. |
+| 03 | `03-trace.md` | Trace a central obligation from claim to enforcement. |
+| 04 | `04-twin.md` | Compare the repo to an adjacent repo with a different model. |
+| 05 | `05-lift.md` | Identify what can survive outside the repo. |
 
-## Non-Goals
+Do not show later prompts early. The sequence is part of the method: later
+passes are designed to reveal what earlier passes missed.
 
-- No automatic full-review execution.
-- No claim truth adjudication without analyzer judgment.
-- No security-audit, style-lint, or generic code-review guarantee.
-- No long-running analysis job queue in v1.
-- No webhook artifact delivery in v1.
-- No cross-repo global claim identity model.
+## The CLI In One Page
+
+Discovery and setup:
+
+```bash
+./repo-review agent-context --json
+./repo-review skill-path --json
+./repo-review status --json
+./repo-review profile list --json --no-input
+```
+
+Delta review:
+
+```bash
+./repo-review diff --range <from>..<to> --json --no-input
+./repo-review impact --review-state <path> --diff-report <path> --json --no-input
+./repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input
+./repo-review ingest --input <path> --kind delta-review --json --no-input
+```
+
+Claims, drift, and aggregation:
+
+```bash
+./repo-review claims list --review-state <path> --json --no-input
+./repo-review claims get <id> --review-state <path> --json --no-input
+./repo-review claims affected --impact-plan <path> --json --no-input
+./repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input
+./repo-review aggregate --review-state <path> --review-state <path> --json --no-input
+```
+
+All shipped commands require `--json`. Mutating commands should use
+`--no-input` in automated contexts. Stdout is result data; stderr is reserved
+for JSON diagnostics.
+
+## Common Tasks
+
+Validate pass prompt metadata:
+
+```bash
+python3 tools/lint_pass_frontmatter.py
+```
+
+Validate a first-read output appendix:
+
+```bash
+python3 tools/validate_pass_output.py path/to/first-read.md --pass-id first-read
+```
+
+Return a prompt packet in JSON instead of writing a file:
+
+```bash
+./repo-review export-prompt \
+  --pass delta-trace \
+  --review-state <path> \
+  --diff-report <path> \
+  --impact-plan <path> \
+  --deliver=stdout \
+  --json --no-input
+```
+
+Use helper templates for recurring review decisions:
+
+```bash
+ls templates
+```
+
+## What Exists Today
+
+- Five staged review prompts.
+- Frontmatter linting for pass prompts.
+- First-read output appendix validation.
+- Initial schemas for pass output, claims, review state, diff reports, impact
+  plans, and delta drift.
+- CLI commands for discovery, profiles, status, feedback, diffing, impact
+  planning, prompt export, ingestion, claims, drift, aggregation, and next-step
+  guidance.
+- Calibration artifacts for repo-review itself.
+- A worked Oathweaver delta slice.
+- Helper templates for affected claims, invalidation triggers, drift summaries,
+  contested claims, twin selection, trace obligation choice, and lift seed
+  evaluation.
+- Evidence-scoped extractable pattern notes in
+  `docs/extractable-patterns.md`.
+
+## What It Does Not Do
+
+- It does not run a full review automatically.
+- It does not decide whether claims are true without an analyzer.
+- It is not a security audit, style linter, or generic code-review tool.
+- It does not execute long-running analysis jobs in v1.
+- It does not deliver artifacts to webhooks in v1.
+- It does not define global claim identity across repos.
+
+## Self-Review
+
+Changes to repo-review prompts, schemas, validators, CLI behavior, or
+agent-facing workflow docs should usually get a repo-review delta review against
+the latest `reviews/repo-review/` state.
+
+Routine self-review asks whether a framework change affects existing claims.
+Calibration is different: use calibration when testing the method or substrate
+itself.
+
+Details are in `docs/incremental-review.md`.
 
 ## Repo Layout
 
@@ -242,7 +242,7 @@ Run the CLI contract tests:
 python3 -m unittest tests.test_agent_native_cli
 ```
 
-Run pass-output validation fixtures:
+Run the lightweight docs/artifact checks:
 
 ```bash
 python3 tools/lint_pass_frontmatter.py
