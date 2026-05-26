@@ -16,6 +16,7 @@ and resumed without rereading everything from scratch.
 - YAML frontmatter and structured `pass_output:` appendices for pass outputs.
 - Validators for pass frontmatter and first-read pass output.
 - Incremental review documentation in `docs/incremental-review.md`.
+- Validated reusable pattern notes in `docs/extractable-patterns.md`.
 - JSON schemas for claims, review state, diff reports, impact plans, delta
   drift, and pass output.
 - A repo-local `repo-review` CLI that exposes machine-readable discovery,
@@ -223,6 +224,7 @@ repo-review/
 ├── agent/
 │   └── repo-review-task-manifest.md
 ├── docs/
+│   ├── extractable-patterns.md
 │   └── incremental-review.md
 ├── repo-review
 ├── reviews/
