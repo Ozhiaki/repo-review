@@ -23,6 +23,7 @@ and resumed without rereading everything from scratch.
   prompt packet export, claims queries, drift surfacing, artifact ingestion,
   and feedback capture.
 - Calibration and delta review artifacts under `reviews/`.
+- Helper templates for recurring review decisions under `templates/`.
 
 The agent-facing command registry is discoverable at runtime:
 
@@ -190,6 +191,9 @@ Primary artifacts:
 - Delta drift reports: structured Drift Surfacer output for changed review
   material.
 - Ingest ledger: local JSONL records under `.repo-review/`.
+- Helper templates: reusable checklists for affected claims, invalidation
+  triggers, drift summaries, contested claims, twin selection, trace obligation
+  choice, and lift seed evaluation.
 
 Artifact delivery starts local. `export-prompt` supports normal file output,
 `--deliver=stdout`, and `--deliver=file:<path>`. Existing files require
@@ -220,6 +224,7 @@ repo-review/
 ├── repo-review
 ├── reviews/
 ├── schemas/
+├── templates/
 ├── tests/
 └── tools/
 ```

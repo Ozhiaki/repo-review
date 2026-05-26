@@ -21,6 +21,43 @@ STATE_DIR = ROOT / ".repo-review"
 PROFILES_PATH = STATE_DIR / "profiles.json"
 FEEDBACK_PATH = STATE_DIR / "feedback.jsonl"
 INGEST_PATH = STATE_DIR / "ingested.jsonl"
+HELPER_TEMPLATES = [
+    {
+        "id": "affected-claims",
+        "path": "templates/affected-claims.md",
+        "purpose": "Select and justify claims affected by a diff or impact plan.",
+    },
+    {
+        "id": "invalidation-trigger",
+        "path": "templates/invalidation-trigger.md",
+        "purpose": "Write concrete invalidation triggers for durable claims.",
+    },
+    {
+        "id": "drift-summary",
+        "path": "templates/drift-summary.md",
+        "purpose": "Summarize subject drift, analysis drift, and unchanged claims.",
+    },
+    {
+        "id": "contested-claim",
+        "path": "templates/contested-claim.md",
+        "purpose": "Record contradictory or unresolved analyst outputs without collapsing them.",
+    },
+    {
+        "id": "twin-selection",
+        "path": "templates/twin-selection.md",
+        "purpose": "Choose and justify a twin repo before running the twin pass.",
+    },
+    {
+        "id": "trace-obligation",
+        "path": "templates/trace-obligation.md",
+        "purpose": "Choose the obligation to trace and map its evidence layers.",
+    },
+    {
+        "id": "lift-seed",
+        "path": "templates/lift-seed.md",
+        "purpose": "Evaluate whether an extractable seed survives outside the repo.",
+    },
+]
 
 
 COMMANDS: dict[str, dict[str, Any]] = {
@@ -233,6 +270,7 @@ def agent_context() -> dict[str, Any]:
         ],
         "enums": ENUMS,
         "delivery_schemes": ENUMS["delivery_scheme"],
+        "helper_templates": HELPER_TEMPLATES,
         "delivery": {
             "supported_schemes": ENUMS["delivery_scheme"],
             "metadata_key": "delivery_metadata",

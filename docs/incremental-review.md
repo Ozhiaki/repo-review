@@ -39,6 +39,8 @@ The modes share these objects:
 - Drift Surfacer material
 - framework limits
 
+Helper templates under `templates/` support recurring decisions such as affected-claim selection, invalidation-trigger writing, drift summaries, contested claims, twin selection, trace obligation choice, and lift seed evaluation. They are reusable checklists, not additional review modes or pass prerequisites.
+
 ## Review State
 
 A review state is the durable record that a future delta review reads. It identifies the repo version, analyzer, pass outputs, durable claims, structured drift material, and known limits.

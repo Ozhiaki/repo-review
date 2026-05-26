@@ -6,7 +6,7 @@ This manifest is the first agent-readable workflow surface for repo-review. It i
 
 ### `repo-review agent-context --json`
 
-Returns the shipped command registry, supported flags, enum values, delivery schemes, available profiles, manifest path, and vocabulary policy.
+Returns the shipped command registry, supported flags, enum values, delivery schemes, helper template paths, available profiles, manifest path, and vocabulary policy.
 
 ### `repo-review skill-path --json`
 
@@ -66,6 +66,7 @@ Queries durable claims without manually parsing review-state files. `claims list
 
 - Full and delta review are specified in `docs/incremental-review.md`.
 - Initial schemas live in `schemas/`.
+- Helper templates for recurring review decisions live in `templates/`.
 - Pass frontmatter linting lives in `tools/lint_pass_frontmatter.py`.
 - First-read output validation lives in `tools/validate_pass_output.py`.
 

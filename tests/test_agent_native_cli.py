@@ -74,6 +74,11 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("--format=json", policy["banned_aliases"])
         command_names = {command["name"] for command in payload["commands"]}
         self.assertFalse(command_names & {"ls", "info"})
+        helper_ids = {template["id"] for template in payload["helper_templates"]}
+        self.assertIn("affected-claims", helper_ids)
+        self.assertIn("trace-obligation", helper_ids)
+        for template in payload["helper_templates"]:
+            self.assertTrue((ROOT / template["path"]).is_file())
         self.assertEqual(payload["delivery"]["metadata_key"], "delivery_metadata")
         self.assertIn("stdout", payload["delivery_schemes"])
         self.assertIn("file:<path>", payload["delivery_schemes"])
