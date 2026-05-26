@@ -404,6 +404,28 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("affected_claims", affected)
         self.assertIn("qualified_claim_id", affected["affected_claims"][0])
 
+    def test_aggregate_reads_multiple_review_states_without_global_claim_identity(self) -> None:
+        result = self.run_cli(
+            "aggregate",
+            "--review-state",
+            "reviews/repo-review/calibration-2026-05-25/review-state.json",
+            "--review-state",
+            "reviews/oathweaver/delta-2026-05-25/prior-review-state.json",
+            "--drift",
+            "reviews/oathweaver/delta-2026-05-25/delta-drift.json",
+            "--json",
+            "--no-input",
+        )
+        payload = self.assert_json_stdout(result)
+        self.assertEqual(payload["review_state_count"], 2)
+        self.assertIn("active", payload["totals"]["claim_status_counts"])
+        self.assertGreaterEqual(payload["totals"]["analyzer_count"], 2)
+        self.assertEqual(payload["totals"]["drift_output_count"], 1)
+        self.assertGreater(payload["drift_material"]["counts"]["strengthened_fascination_seeds"], 0)
+        self.assertFalse(payload["claim_identity"]["global_claim_identity_supported"])
+        for review_state in payload["review_states"]:
+            self.assertTrue(all(":" in claim_id for claim_id in review_state["sample_qualified_claim_ids"]))
+
     def test_python_files_compile(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "py_compile", str(CLI), str(ROOT / "tools/lint_pass_frontmatter.py"), str(ROOT / "tools/validate_pass_output.py")],

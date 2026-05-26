@@ -54,6 +54,10 @@ Validates and records an external analyzer artifact in the local ingest ledger.
 
 Reports the selected v1 orchestration model. V1 assembles prompt packets and does not execute analysis, so jobs and `--wait` are deferred.
 
+### `repo-review aggregate --review-state <path> --review-state <path> --json --no-input`
+
+Summarizes multiple review states and optional `--drift <path>` outputs. Aggregation reports claim status counts, analyzer identities, and drift material without merging local claim IDs across review states.
+
 ## Async Strategy
 
 V1 does not ship `repo-review jobs ...` commands. Long-running analysis execution is deferred; agents should use `export-prompt`, run the analyzer externally, then `ingest` the returned artifact.

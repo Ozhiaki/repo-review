@@ -170,6 +170,9 @@ Implemented commands:
 - `ingest --input <path> --kind delta-review --json --no-input`: validates and
   records an external analyzer artifact.
 - `delta --json --no-input`: reports v1 orchestration metadata.
+- `aggregate --review-state <path> --review-state <path> --json --no-input`:
+  summarizes multiple review states and optional drift outputs without merging
+  claim identity.
 - `claims list|get|affected --json --no-input`: queries review-state claims.
 
 All shipped commands require `--json`. Automated contexts should also use

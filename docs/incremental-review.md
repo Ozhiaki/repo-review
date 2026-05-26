@@ -41,6 +41,8 @@ The modes share these objects:
 
 Helper templates under `templates/` support recurring decisions such as affected-claim selection, invalidation-trigger writing, drift summaries, contested claims, twin selection, trace obligation choice, and lift seed evaluation. They are reusable checklists, not additional review modes or pass prerequisites.
 
+Aggregation across reviews is read-only in v1. `repo-review aggregate` may summarize multiple review states, claim status counts, analyzer identities, and Drift Surfacer outputs, but it must not imply that local claim IDs share identity across repos or review states. Any displayed claim reference should remain qualified by `review_state.id`.
+
 ## Review State
 
 A review state is the durable record that a future delta review reads. It identifies the repo version, analyzer, pass outputs, durable claims, structured drift material, and known limits.
