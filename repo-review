@@ -36,7 +36,7 @@ COMMANDS: dict[str, dict[str, Any]] = {
     },
     "export-prompt": {
         "purpose": "Write a delta review prompt packet from prior state, diff report, and impact plan.",
-        "flags": ["--json", "--no-input", "--pass", "--review-state", "--diff-report", "--impact-plan", "--output", "--overwrite", "--dry-run"],
+        "flags": ["--json", "--no-input", "--pass", "--review-state", "--diff-report", "--impact-plan", "--output", "--deliver", "--overwrite", "--dry-run"],
         "output_schema": None,
     },
     "diff": {
@@ -105,6 +105,7 @@ VOCABULARY_POLICY = {
         "--profile",
         "--wait",
         "--dry-run",
+        "--deliver",
         "--no-input",
     ],
     "banned_aliases": ["ls", "info", "--format=json", "--skip-confirmations"],
@@ -195,6 +196,11 @@ def parse_args(args: list[str]) -> tuple[list[str], dict[str, Any]]:
             options[arg[2:].replace("-", "_")] = True
             index += 1
             continue
+        if arg.startswith("--") and "=" in arg:
+            key, value = arg[2:].split("=", 1)
+            options[key.replace("-", "_")] = value
+            index += 1
+            continue
         if arg.startswith("--"):
             if index + 1 >= len(args) or args[index + 1].startswith("--"):
                 options[arg[2:].replace("-", "_")] = None
@@ -227,6 +233,17 @@ def agent_context() -> dict[str, Any]:
         ],
         "enums": ENUMS,
         "delivery_schemes": ENUMS["delivery_scheme"],
+        "delivery": {
+            "supported_schemes": ENUMS["delivery_scheme"],
+            "metadata_key": "delivery_metadata",
+            "stdout": "Artifact content is returned in the JSON response artifact field.",
+            "file": "Writes require a destination path and refuse existing files unless --overwrite is set.",
+        },
+        "webhook_delivery": {
+            "supported": False,
+            "deferred": True,
+            "reason": "v1 keeps artifact delivery local; webhook delivery needs auth/retry policy first.",
+        },
         "available_profiles": profile_names(),
         "async_strategy": {
             "analysis_execution": "deferred",
@@ -576,16 +593,39 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
             "Run: repo-review export-prompt --pass delta-trace --output <path> --json --no-input",
             valid_values=["delta-trace"],
         ), None
+    deliver = options.get("deliver")
     output = options.get("output")
-    if not output:
-        return fail("missing required --output", "Run with --output <path>.", valid_values=["--output"]), None
+    if deliver:
+        if deliver == "stdout":
+            output = None
+        elif deliver.startswith("file:"):
+            output = deliver.removeprefix("file:")
+            if not output:
+                return fail("missing file delivery path", "Use --deliver=file:<path>.", valid_values=["file:<path>"]), None
+        elif deliver.startswith("webhook:"):
+            return fail(
+                "webhook delivery is deferred in v1",
+                "Use --deliver=stdout or --deliver=file:<path>.",
+                code=2,
+                valid_values=["stdout", "file:<path>"],
+            ), None
+        else:
+            return fail("unsupported delivery scheme", "Use stdout or file:<path>.", valid_values=["stdout", "file:<path>"]), None
+    if not output and deliver != "stdout":
+        return fail("missing required --output", "Run with --output <path> or --deliver=stdout.", valid_values=["--output", "--deliver=stdout"]), None
 
     required_inputs = ["review-state", "diff-report", "impact-plan"]
     if options.get("dry_run"):
         return 0, {
             "schema_version": SCHEMA_VERSION,
             "dry_run": True,
-            "would_write": str(Path(output)),
+            "would_write": None if deliver == "stdout" else str(Path(output)),
+            "delivery": deliver or f"file:{output}",
+            "delivery_metadata": {
+                "scheme": "stdout" if deliver == "stdout" else "file",
+                "path": None if deliver == "stdout" else str(Path(output)),
+                "webhook_deferred": False,
+            },
             "required_inputs": required_inputs,
             "missing_inputs": [name for name in required_inputs if not options.get(name.replace("-", "_"))],
         }
@@ -603,6 +643,22 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     assert diff_report is not None
     assert impact_plan is not None
 
+    prompt = build_delta_prompt(review_state, diff_report, impact_plan)
+    if deliver == "stdout":
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "delivery": "stdout",
+            "delivery_metadata": {
+                "scheme": "stdout",
+                "path": None,
+                "webhook_deferred": False,
+            },
+            "artifact": prompt,
+            "bytes_written": 0,
+            "pass": pass_id,
+            "overwritten": False,
+        }
+
     output_path = Path(output)
     if output_path.exists() and not options.get("overwrite"):
         return fail(
@@ -613,13 +669,18 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
             valid_values=["--overwrite"],
         ), None
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    prompt = build_delta_prompt(review_state, diff_report, impact_plan)
     temp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     temp_path.write_text(prompt, encoding="utf-8")
     temp_path.replace(output_path)
     return 0, {
         "schema_version": SCHEMA_VERSION,
         "path": str(output_path),
+        "delivery": f"file:{output_path}",
+        "delivery_metadata": {
+            "scheme": "file",
+            "path": str(output_path),
+            "webhook_deferred": False,
+        },
         "bytes_written": output_path.stat().st_size,
         "pass": pass_id,
         "overwritten": bool(options.get("overwrite")),

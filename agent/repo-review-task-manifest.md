@@ -34,7 +34,9 @@ Maps changed files from a diff report to claim `watch_paths` from a review state
 
 ### `repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input`
 
-Writes a delta trace prompt packet. Existing output files require `--overwrite`; `--dry-run` reports the intended output and required inputs without writing.
+Writes a delta trace prompt packet. Existing output files require `--overwrite`; `--dry-run` reports the intended output and required inputs without writing. `--deliver=stdout` returns the artifact inside the JSON response, and `--deliver=file:<path>` is equivalent to `--output <path>`. JSON responses include `delivery_metadata` with the selected scheme and local path when applicable.
+
+Webhook delivery is deferred in v1.
 
 ### `repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input`
 

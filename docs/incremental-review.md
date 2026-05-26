@@ -431,6 +431,14 @@ repo-review feedback "..." --json --no-input
   ],
   "profiles": ["default"],
   "delivery_schemes": ["stdout", "file:<path>"],
+  "delivery": {
+    "metadata_key": "delivery_metadata",
+    "supported_schemes": ["stdout", "file:<path>"]
+  },
+  "webhook_delivery": {
+    "supported": false,
+    "deferred": true
+  },
   "skill_manifest_path": "agent/repo-review-task-manifest.md",
   "vocabulary_policy": {
     "preferred_verbs": ["list", "get", "create", "update", "delete"],
@@ -458,7 +466,7 @@ Feedback writes local JSONL and returns the stored entry:
 }
 ```
 
-Delivery schemes start with `stdout` and `file:<path>`. `webhook:<url>` is deferred unless a v1 command actually needs upstream delivery.
+Delivery schemes start with `stdout` and `file:<path>`. `stdout` delivery in JSON mode returns the artifact inside the JSON response rather than mixing raw artifact text into stdout. `file:<path>` delivery requires an explicit destination and refuses existing files unless the command also receives `--overwrite`. Artifact-producing commands include `delivery_metadata` in JSON results. `webhook:<url>` is deferred in v1 pending authentication, retry, and failure-reporting policy.
 
 ## Framework Limits
 

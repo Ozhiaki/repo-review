@@ -74,6 +74,11 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertIn("--format=json", policy["banned_aliases"])
         command_names = {command["name"] for command in payload["commands"]}
         self.assertFalse(command_names & {"ls", "info"})
+        self.assertEqual(payload["delivery"]["metadata_key"], "delivery_metadata")
+        self.assertIn("stdout", payload["delivery_schemes"])
+        self.assertIn("file:<path>", payload["delivery_schemes"])
+        self.assertTrue(payload["webhook_delivery"]["deferred"])
+        self.assertFalse(payload["webhook_delivery"]["supported"])
 
     def test_profile_precedence_flag_env_profile_default(self) -> None:
         profile_name = "test-precedence"
@@ -221,6 +226,90 @@ class AgentNativeCliTests(unittest.TestCase):
             diagnostic = self.assert_json_stderr(refused)
             self.assertEqual(refused.returncode, 5)
             self.assertIn("--overwrite", diagnostic["valid_values"])
+
+            stdout_delivery = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                "--deliver",
+                "stdout",
+                "--json",
+                "--no-input",
+            )
+            stdout_payload = self.assert_json_stdout(stdout_delivery)
+            self.assertEqual(stdout_payload["delivery"], "stdout")
+            self.assertEqual(stdout_payload["delivery_metadata"]["scheme"], "stdout")
+            self.assertIsNone(stdout_payload["delivery_metadata"]["path"])
+            self.assertIn("Conflation Guard", stdout_payload["artifact"])
+
+            delivered_path = tmp_path / "delivered.md"
+            file_delivery = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                f"--deliver=file:{delivered_path}",
+                "--json",
+                "--no-input",
+            )
+            file_payload = self.assert_json_stdout(file_delivery)
+            self.assertEqual(file_payload["delivery"], f"file:{delivered_path}")
+            self.assertEqual(file_payload["delivery_metadata"]["scheme"], "file")
+            self.assertEqual(file_payload["delivery_metadata"]["path"], str(delivered_path))
+            self.assertIn("Conflation Guard", delivered_path.read_text(encoding="utf-8"))
+
+            refused_file_delivery = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                str(diff_path),
+                "--impact-plan",
+                str(impact_path),
+                f"--deliver=file:{delivered_path}",
+                "--json",
+                "--no-input",
+            )
+            file_diagnostic = self.assert_json_stderr(refused_file_delivery)
+            self.assertEqual(refused_file_delivery.returncode, 5)
+            self.assertIn("--overwrite", file_diagnostic["valid_values"])
+
+            webhook_delivery = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--deliver=webhook:https://example.invalid/repo-review",
+                "--json",
+                "--no-input",
+            )
+            webhook_diagnostic = self.assert_json_stderr(webhook_delivery)
+            self.assertEqual(webhook_delivery.returncode, 2)
+            self.assertIn("deferred", webhook_diagnostic["message"])
+
+            missing_file_path = self.run_cli(
+                "export-prompt",
+                "--pass",
+                "delta-trace",
+                "--deliver=file:",
+                "--json",
+                "--no-input",
+            )
+            missing_file_diagnostic = self.assert_json_stderr(missing_file_path)
+            self.assertEqual(missing_file_path.returncode, 2)
+            self.assertIn("file:<path>", missing_file_diagnostic["valid_values"])
 
     def test_drift_surface_outputs_delta_drift_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
