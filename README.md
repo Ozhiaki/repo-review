@@ -16,12 +16,14 @@ The repo contains two things:
 - A small CLI for maintaining review state and running delta reviews later.
 
 The CLI does not replace judgment. It helps preserve enough structure that a
-future human or agent can resume the review without starting from scratch.
+future human, model, or agent can resume the review without starting from
+scratch.
 
 ## Start Here
 
-For a first review, read the prompts in order and give them to the analyzer one
-at a time:
+For a first review, read the prompts in order and give them to your reviewer
+one at a time. The reviewer might be you, an LLM chat, or an agent acting under
+your direction:
 
 ```bash
 less 01-first-read.md
@@ -36,12 +38,30 @@ less 04-twin.md
 less 05-lift.md
 ```
 
-For an agent or script, start by asking the repo what it supports:
+If you use an agent or script, it should start by asking the repo what helper
+surface is available. This is not the review itself. It is capability discovery
+for tooling that helps package, validate, and maintain the structured products
+of a human-directed review:
 
 ```bash
 ./repo-review agent-context --json
 ./repo-review status --json
 ```
+
+`agent-context` returns the machine-readable command registry: supported
+commands, flags, enums, delivery modes, helper templates, async policy, and the
+path to the agent task manifest. An agent should read this before assuming a
+command exists.
+
+`status` returns the current repo-review configuration: repo root, review output
+directory, profile settings, and suggested next actions. A script should use it
+to discover local paths and defaults instead of hard-coding them.
+
+The intended flow is human-first: a person applies the staged review prompts,
+keeps or edits the resulting prose, and decides what the repo means. The
+structured appendices and review-state files from that manual review then feed
+the CLI. The CLI helps with later maintenance: diff reports, impact plans,
+prompt packets, claim lookup, drift summaries, aggregation, and ingest records.
 
 For an incremental review of a changed repo, generate a diff report, map it to
 prior claims, and export a prompt packet:
@@ -63,7 +83,7 @@ prior claims, and export a prompt packet:
   --json --no-input
 ```
 
-That packet is for an external analyzer. After the analyzer returns a delta
+That packet is for an external reviewer or model. After it returns a delta
 review artifact, record it:
 
 ```bash
@@ -78,12 +98,12 @@ identity, findings, evidence, and follow-up work.
 
 An incremental review works from these artifacts:
 
-- `review-state.json`: durable claims, evidence refs, analyzer identity, watch
+- `review-state.json`: durable claims, evidence refs, reviewer identity, watch
   paths, and invalidation triggers.
 - `diff-report.json`: bounded summary of changed files.
 - `impact-plan.json`: candidate claim impacts and unknowns.
-- `delta-trace-prompt.md`: analyzer-ready prompt packet.
-- `delta-review.md`: analyzer-written update.
+- `delta-trace-prompt.md`: reviewer-ready prompt packet.
+- `delta-review.md`: reviewer-written update.
 - `delta-drift.json`: structured summary of strengthened, weakened, new, or
   invalidated review material.
 
@@ -194,7 +214,7 @@ ls templates
 ## What It Does Not Do
 
 - It does not run a full review automatically.
-- It does not decide whether claims are true without an analyzer.
+- It does not decide whether claims are true without reviewer judgment.
 - It is not a security audit, style linter, or generic code-review tool.
 - It does not execute long-running analysis jobs in v1.
 - It does not deliver artifacts to webhooks in v1.
