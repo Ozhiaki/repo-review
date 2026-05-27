@@ -600,8 +600,16 @@ def emit_human(lines: list[str]) -> int:
 
 def human_status(payload: dict[str, Any]) -> list[str]:
     configured = payload.get("configured_paths", {})
+    workflow = payload.get("workflow_state", {})
+    latest_state = workflow.get("latest_review_state")
     lines = [
-        "Repo-review status",
+        "Workflow status",
+        "",
+        f"State: {workflow.get('summary')}",
+        f"Latest review state: {(latest_state or {}).get('id') or '(none)'}",
+        f"Open runs: {len(workflow.get('open_runs', []))}",
+        f"Prompt-ready runs: {len(workflow.get('prompt_ready_runs', []))}",
+        f"Candidate claim files: {len(workflow.get('candidate_claims_waiting', []))}",
         "",
         f"Repo: {configured.get('repo_root')}",
         f"Output dir: {configured.get('review_output_dir')}",
@@ -1952,6 +1960,41 @@ def load_review_state_reference(reference: str, repo_root: Path) -> tuple[dict[s
     return loaded, matched_path, warnings
 
 
+def discover_candidate_claim_files(repo_root: Path, latest_state_id: str | None = None) -> list[dict[str, Any]]:
+    roots = [repo_root / "reviews", ROOT / "reviews"]
+    candidates: list[dict[str, Any]] = []
+    seen: set[Path] = set()
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*.json"):
+            name = path.name.lower()
+            if "candidate" not in name or "claim" not in name:
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                with resolved.open(encoding="utf-8") as handle:
+                    loaded = json.load(handle)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(loaded, dict) or not isinstance(loaded.get("candidate_claims"), list):
+                continue
+            review_state_id = loaded.get("review_state")
+            if latest_state_id and review_state_id not in {None, latest_state_id}:
+                continue
+            candidates.append(
+                {
+                    "path": str(resolved),
+                    "review_state": review_state_id,
+                    "candidate_claim_count": len(loaded["candidate_claims"]),
+                }
+            )
+    return sorted(candidates, key=lambda item: item["path"])
+
+
 def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
         return fail("missing state subcommand", "Use one of: bootstrap, list, latest, get, validate.", valid_values=["bootstrap", "list", "latest", "get", "validate"]), None
@@ -3021,17 +3064,67 @@ def resolve_config(options: dict[str, Any]) -> dict[str, Any]:
 
 def status(options: dict[str, Any]) -> dict[str, Any]:
     config = resolve_config(options)
+    repo_root = Path(config["configured_paths"]["repo_root"]).expanduser().resolve()
+    review_states, state_warnings = discover_review_states(repo_root)
+    latest_state = review_states[0] if review_states else None
+    latest_state_id = latest_state.get("id") if latest_state else None
+    runs, run_errors = read_review_run_ledger(repo_root)
+    latest_runs = sorted(latest_review_runs(runs).values(), key=lambda item: item.get("updated_at", ""), reverse=True)
+    open_runs = [summarize_run(run) for run in latest_runs if run.get("status") not in {"complete", "failed"}]
+    prompt_ready_runs = [run for run in open_runs if run.get("status") == "prompt_ready"]
+    complete_runs = [summarize_run(run) for run in latest_runs if run.get("status") == "complete"]
+    candidate_claims = discover_candidate_claim_files(repo_root, str(latest_state_id) if latest_state_id else None)
+    if prompt_ready_runs:
+        summary = "prompt_ready"
+        next_action = {
+            "action": "ingest_review",
+            "reason": "At least one run has a prompt ready for reviewer output.",
+            "recommended_command": f"repo-review review ingest --run {prompt_ready_runs[0]['run_id']} --input <review.md> --json --no-input",
+        }
+    elif open_runs:
+        summary = "run_open"
+        next_action = {
+            "action": "inspect_run",
+            "reason": "A review run is in progress.",
+            "recommended_command": f"repo-review runs get {open_runs[0]['run_id']} --json --no-input",
+        }
+    elif candidate_claims and latest_state:
+        summary = "candidate_claims_waiting"
+        next_action = {
+            "action": "import_candidate_claims",
+            "reason": "Candidate claims were found for the latest review state.",
+            "recommended_command": f"repo-review claims import --review-state {latest_state['path']} --input {candidate_claims[0]['path']} --json --no-input",
+        }
+    elif latest_state:
+        summary = "state_ready"
+        next_action = {
+            "action": "start_delta_review",
+            "reason": "A review state is available and no open runs were found.",
+            "recommended_command": f"repo-review review start --mode delta --repo {repo_root} --review-state {latest_state['path']} --range <from>..<to> --json --no-input",
+        }
+    else:
+        summary = "no_review_state"
+        next_action = {
+            "action": "bootstrap_review_state",
+            "reason": "No review state was discovered for this repo.",
+            "recommended_command": "repo-review state bootstrap --repo <path> --review-dir <path> --output <review-state.json> --json --no-input",
+        }
+    workflow_state = {
+        "summary": summary,
+        "latest_review_state": latest_state,
+        "open_runs": open_runs,
+        "prompt_ready_runs": prompt_ready_runs,
+        "complete_runs": complete_runs,
+        "candidate_claims_waiting": candidate_claims,
+        "warnings": [*state_warnings, *run_errors],
+        "next_action": next_action,
+    }
     return {
         "schema_version": SCHEMA_VERSION,
         **config,
         "available_profiles": profile_names(),
-        "next_actions": [
-            {
-                "action": "run_first_read",
-                "reason": "No review-state discovery is implemented in this CLI slice.",
-                "recommended_command": "repo-review skill-path --json",
-            }
-        ],
+        "workflow_state": workflow_state,
+        "next_actions": [next_action],
     }
 
 

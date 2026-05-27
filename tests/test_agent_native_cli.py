@@ -240,7 +240,7 @@ pass_output:
                 self.assertIn("hint", diagnostic)
 
     def test_targeted_commands_emit_human_output_without_json(self) -> None:
-        self.assert_human_stdout(self.run_cli("status"), "Repo-review status")
+        self.assert_human_stdout(self.run_cli("status"), "Workflow status")
         self.assert_human_stdout(
             self.run_cli("diff", "--repo", str(ROOT), "--range", "HEAD~1..HEAD", "--limit", "1", "--no-input"),
             "Diff report",
@@ -606,6 +606,56 @@ pass_output:
             diagnostic = self.assert_json_stderr(self.run_cli("state", "latest", "--repo", str(repo_root), "--json", "--no-input"))
             self.assertEqual(diagnostic["code"], "invalid_invocation")
             self.assertIn("ambiguous", diagnostic["message"])
+
+    def test_status_reports_workflow_state_for_no_prompt_and_complete_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            state_path = repo_root / "reviews" / "repo" / "latest" / "review-state.json"
+            state_path.parent.mkdir(parents=True)
+            state = self.review_state_record(repo_root, "status-state", "2026-05-27T00:00:00Z")
+            state_path.write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+
+            no_run = self.assert_json_stdout(self.run_cli("status", "--repo", str(repo_root), "--json"))
+            self.assertIn("workflow_state", no_run)
+            self.assertEqual(no_run["workflow_state"]["summary"], "state_ready")
+            self.assertEqual(no_run["workflow_state"]["latest_review_state"]["id"], "status-state")
+            self.assertEqual(no_run["workflow_state"]["open_runs"], [])
+            self.assertIn("configured_paths", no_run)
+            self.assert_human_stdout(self.run_cli("status", "--repo", str(repo_root)), "Workflow status")
+
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            prompt_run = self.review_run_record("prompt-run")
+            prompt_run["repo"]["root"] = str(repo_root)
+            prompt_run["status"] = "prompt_ready"
+            prompt_run["updated_at"] = "2026-05-27T02:00:00Z"
+            ledger.write_text(json.dumps(prompt_run, sort_keys=True) + "\n", encoding="utf-8")
+            prompt_ready = self.assert_json_stdout(self.run_cli("status", "--repo", str(repo_root), "--json"))
+            self.assertEqual(prompt_ready["workflow_state"]["summary"], "prompt_ready")
+            self.assertEqual(prompt_ready["workflow_state"]["prompt_ready_runs"][0]["run_id"], "prompt-run")
+
+            complete_run = {**prompt_run, "run_id": "complete-run", "status": "complete", "updated_at": "2026-05-27T03:00:00Z"}
+            ledger.write_text(json.dumps(complete_run, sort_keys=True) + "\n", encoding="utf-8")
+            complete = self.assert_json_stdout(self.run_cli("status", "--repo", str(repo_root), "--json"))
+            self.assertEqual(complete["workflow_state"]["summary"], "state_ready")
+            self.assertEqual(complete["workflow_state"]["open_runs"], [])
+            self.assertEqual(complete["workflow_state"]["complete_runs"][0]["run_id"], "complete-run")
+
+            candidate_path = state_path.with_name("candidate-claims.json")
+            candidate_path.write_text(
+                json.dumps(
+                    {
+                        "review_state": "status-state",
+                        "produced_by_analyzer": {"id": "human", "kind": "human", "model": None, "tool_context": "test"},
+                        "candidate_claims": [self.candidate_claim()],
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            waiting = self.assert_json_stdout(self.run_cli("status", "--repo", str(repo_root), "--json"))
+            self.assertEqual(waiting["workflow_state"]["summary"], "candidate_claims_waiting")
+            self.assertEqual(waiting["workflow_state"]["candidate_claims_waiting"][0]["candidate_claim_count"], 1)
 
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
