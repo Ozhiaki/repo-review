@@ -14,7 +14,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["human", "hybrid", "llm", "tool"]
+          "enum": ["human", "hybrid", "llm", "tool", "unknown"]
         },
         "model": {
           "type": ["string", "null"]

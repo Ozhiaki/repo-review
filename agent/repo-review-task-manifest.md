@@ -58,19 +58,39 @@ Reports the selected v1 orchestration model. V1 assembles prompt packets and doe
 
 Summarizes multiple review states and optional `--drift <path>` outputs. Aggregation reports claim status counts, analyzer identities, and drift material without merging local claim IDs across review states.
 
+### `repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input`
+
+Creates a schema-valid review-state shell from older Markdown review prose. It
+discovers review artifacts, preserves files with and without `pass_output:`
+appendices, records repo metadata and original source identity, writes
+`claims: []`, and creates `review-state.bootstrap.json` next to the generated
+state. Use `--dry-run` to preview discovery and warnings without writing, and
+`--overwrite` to replace an existing state or sidecar.
+
+Bootstrap is mechanical migration only. It must not promote inferred prose
+claims into durable state.
+
 ## Async Strategy
 
 V1 does not ship `repo-review jobs ...` commands. Long-running analysis execution is deferred; agents should use `export-prompt`, run the analyzer externally, then `ingest` the returned artifact.
 
-### `repo-review claims list|get|affected --json --no-input`
+### `repo-review claims list|get|affected|import --json --no-input`
 
 Queries durable claims without manually parsing review-state files. `claims list` supports status/kind/subject filters and bounded output; `claims get` returns one claim with evidence refs; `claims affected` reports impacted claims from an impact plan. Output includes fully qualified claim IDs.
+
+`claims import` reads a human-authored candidate claims file, validates each
+candidate, inherits file-level reviewer identity into claims that omit
+`produced_by_analyzer`, validates durable claim shape, refuses duplicate IDs by
+default, supports `--overwrite-claims` for intentional replacement, writes the
+review state atomically, and appends `review-state.imports.jsonl`.
 
 ## Current Scope
 
 - Full and delta review are specified in `docs/incremental-review.md`.
 - Initial schemas live in `schemas/`.
-- Helper templates for recurring review decisions live in `templates/`.
+- Helper templates for recurring review decisions live in `templates/`,
+  including `templates/bootstrap-candidate-claims.md` for selecting durable
+  claims after state bootstrap.
 - Pass frontmatter linting lives in `tools/lint_pass_frontmatter.py`.
 - First-read output validation lives in `tools/validate_pass_output.py`.
 
@@ -80,3 +100,5 @@ Queries durable claims without manually parsing review-state files. `claims list
 - Treat stdout as result data and stderr as diagnostics.
 - Do not rely on commands that are absent from `repo-review agent-context --json`.
 - Prefer `--no-input` on mutating commands in automated contexts.
+- Treat bootstrapped states as claim-empty until a reviewer explicitly imports
+  human-authored candidate claims.

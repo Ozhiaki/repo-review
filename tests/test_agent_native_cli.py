@@ -39,6 +39,50 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         return json.loads(result.stderr)
 
+    def write_legacy_reviews(self, directory: Path) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "01-first-read-fixture.md").write_text(
+            """# First Read
+
+Legacy prose.
+
+```yaml
+pass_output:
+  pass_id: first-read
+  repo: fixture
+  analyzed_at: 2026-05-13T00:00:00-04:00
+```
+""",
+            encoding="utf-8",
+        )
+        (directory / "03-synthesis-fixture.md").write_text(
+            "# Synthesis\n\nLegacy synthesis prose without a structured appendix.\n",
+            encoding="utf-8",
+        )
+
+    def candidate_claim(self, claim_id: str = "first_read.central") -> dict:
+        return {
+            "id": claim_id,
+            "kind": "central_abstraction",
+            "subject": {"type": "repo", "ref": "."},
+            "statement": "The fixture repo has a durable central claim.",
+            "evidence_refs": [
+                {
+                    "id": "ev-first-read-central",
+                    "file": "../../01-first-read-fixture.md",
+                    "locator": "First Read",
+                    "quote": None,
+                }
+            ],
+            "confidence": "medium",
+            "claim_status": "active",
+            "depends_on_claims": [],
+            "related_claims": [],
+            "watch_paths": ["repo-review"],
+            "invalidation_triggers": ["The CLI is removed."],
+            "contested_by": [],
+        }
+
     def test_json_commands_emit_parseable_stdout_only(self) -> None:
         for args in [
             ("agent-context", "--json"),
@@ -403,6 +447,287 @@ class AgentNativeCliTests(unittest.TestCase):
         affected = self.assert_json_stdout(self.run_cli("claims", "affected", "--impact-plan", impact, "--json", "--no-input"))
         self.assertIn("affected_claims", affected)
         self.assertIn("qualified_claim_id", affected["affected_claims"][0])
+
+    def test_state_bootstrap_dry_run_write_and_overwrite_refusal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            output_path = tmp_path / "reviews" / "fixture" / "full-2026-05-13" / "review-state.json"
+            sidecar_path = output_path.with_name("review-state.bootstrap.json")
+            self.write_legacy_reviews(review_dir)
+
+            dry_run = self.run_cli(
+                "state",
+                "bootstrap",
+                "--repo",
+                str(ROOT),
+                "--review-dir",
+                str(review_dir),
+                "--output",
+                str(output_path),
+                "--source-analyzer-id",
+                "claude-2026-05-13-fixture",
+                "--source-kind",
+                "llm",
+                "--source-model",
+                "claude-opus-4",
+                "--source-tool-context",
+                "claude.ai",
+                "--dry-run",
+                "--json",
+                "--no-input",
+            )
+            dry_payload = self.assert_json_stdout(dry_run)
+            self.assertFalse(dry_payload["created"])
+            self.assertEqual(dry_payload["pass_outputs"], 2)
+            self.assertFalse(output_path.exists())
+            self.assertFalse(sidecar_path.exists())
+            self.assertTrue(any("no structured pass_output" in warning for warning in dry_payload["warnings"]))
+
+            written = self.run_cli(
+                "state",
+                "bootstrap",
+                "--repo",
+                str(ROOT),
+                "--review-dir",
+                str(review_dir),
+                "--output",
+                str(output_path),
+                "--review-state-id",
+                "fixture-full-2026-05-13",
+                "--source-analyzer-id",
+                "claude-2026-05-13-fixture",
+                "--source-kind",
+                "llm",
+                "--source-model",
+                "claude-opus-4",
+                "--source-tool-context",
+                "claude.ai",
+                "--json",
+                "--no-input",
+            )
+            payload = self.assert_json_stdout(written)
+            self.assertTrue(payload["created"])
+            self.assertTrue(output_path.is_file())
+            self.assertTrue(sidecar_path.is_file())
+            state = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["id"], "fixture-full-2026-05-13")
+            self.assertEqual(state["claims"], [])
+            self.assertIsNone(state["drift_surface"])
+            self.assertEqual(state["produced_by_analyzer"]["id"], "claude-2026-05-13-fixture")
+            self.assertEqual(len(state["pass_outputs"]), 2)
+            self.assertIn("some-pass-outputs-lack-structured-appendix", state["limits"])
+
+            aggregate = self.run_cli("aggregate", "--review-state", str(output_path), "--json", "--no-input")
+            aggregate_payload = self.assert_json_stdout(aggregate)
+            self.assertEqual(aggregate_payload["review_state_count"], 1)
+
+            refused = self.run_cli(
+                "state",
+                "bootstrap",
+                "--repo",
+                str(ROOT),
+                "--review-dir",
+                str(review_dir),
+                "--output",
+                str(output_path),
+                "--json",
+                "--no-input",
+            )
+            diagnostic = self.assert_json_stderr(refused)
+            self.assertEqual(refused.returncode, 5)
+            self.assertIn("--overwrite", diagnostic["valid_values"])
+
+    def test_state_bootstrap_unknown_source_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            output_path = tmp_path / "review-state.json"
+            self.write_legacy_reviews(review_dir)
+            result = self.run_cli(
+                "state",
+                "bootstrap",
+                "--repo",
+                str(ROOT),
+                "--review-dir",
+                str(review_dir),
+                "--output",
+                str(output_path),
+                "--json",
+                "--no-input",
+            )
+            payload = self.assert_json_stdout(result)
+            state = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["produced_by_analyzer"]["id"], "unknown-pre-bootstrap")
+            self.assertEqual(state["produced_by_analyzer"]["kind"], "unknown")
+            self.assertIn("source-reviewer-identity-unknown", state["limits"])
+            self.assertTrue(any("unknown-pre-bootstrap" in warning for warning in payload["warnings"]))
+
+    def test_claims_import_inherits_identity_audits_and_supports_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            state_path = tmp_path / "review-state.json"
+            candidate_path = tmp_path / "candidate-claims.json"
+            self.write_legacy_reviews(review_dir)
+            self.assert_json_stdout(
+                self.run_cli(
+                    "state",
+                    "bootstrap",
+                    "--repo",
+                    str(ROOT),
+                    "--review-dir",
+                    str(review_dir),
+                    "--output",
+                    str(state_path),
+                    "--review-state-id",
+                    "fixture-full-2026-05-13",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            candidate_file = {
+                "schema_version": 1,
+                "review_state": "fixture-full-2026-05-13",
+                "produced_by_analyzer": {
+                    "id": "dave-2026-05-27-fixture-claims",
+                    "kind": "human",
+                    "model": None,
+                    "tool_context": "manual claim selection from pre-v1 prose",
+                    "prompt_set_version": "repo-review-v1",
+                    "notes": "Fixture claim selection.",
+                },
+                "candidate_claims": [self.candidate_claim()],
+                "warnings": [],
+            }
+            candidate_path.write_text(json.dumps(candidate_file), encoding="utf-8")
+
+            imported = self.run_cli(
+                "claims",
+                "import",
+                "--review-state",
+                str(state_path),
+                "--input",
+                str(candidate_path),
+                "--json",
+                "--no-input",
+            )
+            import_payload = self.assert_json_stdout(imported)
+            self.assertEqual(import_payload["imported"], 1)
+            self.assertEqual(import_payload["replaced"], 0)
+            self.assertTrue(Path(import_payload["audit_log"]).is_file())
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(state["claims"]), 1)
+            self.assertEqual(state["claims"][0]["produced_by_analyzer"]["id"], "dave-2026-05-27-fixture-claims")
+
+            listed = self.assert_json_stdout(self.run_cli("claims", "list", "--review-state", str(state_path), "--json", "--no-input"))
+            self.assertEqual(listed["claims"][0]["id"], "first_read.central")
+            got = self.assert_json_stdout(
+                self.run_cli("claims", "get", "fixture-full-2026-05-13:first_read.central", "--review-state", str(state_path), "--json", "--no-input")
+            )
+            self.assertEqual(got["claim"]["id"], "first_read.central")
+
+            duplicate = self.run_cli(
+                "claims",
+                "import",
+                "--review-state",
+                str(state_path),
+                "--input",
+                str(candidate_path),
+                "--json",
+                "--no-input",
+            )
+            duplicate_diagnostic = self.assert_json_stderr(duplicate)
+            self.assertEqual(duplicate.returncode, 5)
+            self.assertIn("--overwrite-claims", duplicate_diagnostic["valid_values"])
+
+            candidate_file["candidate_claims"][0]["statement"] = "The updated fixture claim replaces only the matching claim."
+            candidate_path.write_text(json.dumps(candidate_file), encoding="utf-8")
+            overwritten = self.run_cli(
+                "claims",
+                "import",
+                "--review-state",
+                str(state_path),
+                "--input",
+                str(candidate_path),
+                "--overwrite-claims",
+                "--json",
+                "--no-input",
+            )
+            overwrite_payload = self.assert_json_stdout(overwritten)
+            self.assertEqual(overwrite_payload["replaced"], 1)
+            updated_state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(updated_state["claims"]), 1)
+            self.assertEqual(updated_state["claims"][0]["statement"], "The updated fixture claim replaces only the matching claim.")
+
+    def test_claims_import_refuses_mismatched_review_state_and_invalid_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            state_path = tmp_path / "review-state.json"
+            candidate_path = tmp_path / "candidate-claims.json"
+            self.write_legacy_reviews(review_dir)
+            self.assert_json_stdout(
+                self.run_cli(
+                    "state",
+                    "bootstrap",
+                    "--repo",
+                    str(ROOT),
+                    "--review-dir",
+                    str(review_dir),
+                    "--output",
+                    str(state_path),
+                    "--review-state-id",
+                    "fixture-full-2026-05-13",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            candidate_file = {
+                "schema_version": 1,
+                "review_state": "other-review",
+                "produced_by_analyzer": {
+                    "id": "dave-2026-05-27-fixture-claims",
+                    "kind": "human",
+                    "model": None,
+                    "tool_context": "manual claim selection from pre-v1 prose",
+                    "prompt_set_version": "repo-review-v1",
+                    "notes": None,
+                },
+                "candidate_claims": [self.candidate_claim()],
+                "warnings": [],
+            }
+            candidate_path.write_text(json.dumps(candidate_file), encoding="utf-8")
+            mismatched = self.run_cli(
+                "claims",
+                "import",
+                "--review-state",
+                str(state_path),
+                "--input",
+                str(candidate_path),
+                "--json",
+                "--no-input",
+            )
+            mismatch_diagnostic = self.assert_json_stderr(mismatched)
+            self.assertEqual(mismatched.returncode, 3)
+            self.assertIn("--force", mismatch_diagnostic["valid_values"])
+
+            candidate_file["review_state"] = "fixture-full-2026-05-13"
+            del candidate_file["candidate_claims"][0]["statement"]
+            candidate_path.write_text(json.dumps(candidate_file), encoding="utf-8")
+            invalid = self.run_cli(
+                "claims",
+                "import",
+                "--review-state",
+                str(state_path),
+                "--input",
+                str(candidate_path),
+                "--json",
+                "--no-input",
+            )
+            invalid_diagnostic = self.assert_json_stderr(invalid)
+            self.assertEqual(invalid.returncode, 3)
+            self.assertIn("candidate_claims[0].statement", invalid_diagnostic["hint"])
 
     def test_aggregate_reads_multiple_review_states_without_global_claim_identity(self) -> None:
         result = self.run_cli(

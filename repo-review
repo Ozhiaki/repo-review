@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -22,6 +23,11 @@ PROFILES_PATH = STATE_DIR / "profiles.json"
 FEEDBACK_PATH = STATE_DIR / "feedback.jsonl"
 INGEST_PATH = STATE_DIR / "ingested.jsonl"
 HELPER_TEMPLATES = [
+    {
+        "id": "bootstrap-candidate-claims",
+        "path": "templates/bootstrap-candidate-claims.md",
+        "purpose": "Guide human selection of durable claims from pre-v1 prose before validated import.",
+    },
     {
         "id": "affected-claims",
         "path": "templates/affected-claims.md",
@@ -108,8 +114,8 @@ COMMANDS: dict[str, dict[str, Any]] = {
     },
     "claims": {
         "purpose": "Query durable claims from review states and impact plans.",
-        "flags": ["--json", "--no-input", "--review-state", "--impact-plan", "--claim-status", "--kind", "--subject", "--limit"],
-        "subcommands": ["list", "get", "affected"],
+        "flags": ["--json", "--no-input", "--review-state", "--impact-plan", "--input", "--force", "--overwrite-claims", "--claim-status", "--kind", "--subject", "--limit"],
+        "subcommands": ["list", "get", "affected", "import"],
         "output_schema": None,
     },
     "drift": {
@@ -123,6 +129,28 @@ COMMANDS: dict[str, dict[str, Any]] = {
         "flags": ["--json", "--no-input", "--force"],
         "subcommands": ["list", "show", "save", "delete"],
         "output_schema": None,
+    },
+    "state": {
+        "purpose": "Create and validate durable review-state artifacts.",
+        "flags": [
+            "--json",
+            "--no-input",
+            "--repo",
+            "--review-dir",
+            "--output",
+            "--review-state-id",
+            "--created-at",
+            "--source-analyzer-id",
+            "--source-kind",
+            "--source-model",
+            "--source-tool-context",
+            "--source-prompt-set-version",
+            "--source-notes",
+            "--dry-run",
+            "--overwrite",
+        ],
+        "subcommands": ["bootstrap"],
+        "output_schema": "schemas/review_state.schema.json",
     },
     "skill-path": {
         "purpose": "Return the local directory containing the repo-review agent task manifest.",
@@ -156,6 +184,7 @@ VOCABULARY_POLICY = {
 
 ENUMS = {
     "claim_status": ["active", "superseded", "contested", "invalidated"],
+    "confidence": ["high", "medium", "low"],
     "delivery_scheme": ["stdout", "file:<path>"],
     "exit_code": {
         "0": "success",
@@ -168,6 +197,7 @@ ENUMS = {
         "7": "interrupted or timed out",
     },
     "review_mode": ["full", "delta"],
+    "analyzer_kind": ["human", "hybrid", "llm", "tool", "unknown"],
     "diff_classification": [
         "docs-only",
         "tests-only",
@@ -230,7 +260,7 @@ def save_profiles(profiles: dict[str, dict[str, Any]]) -> None:
 def parse_args(args: list[str]) -> tuple[list[str], dict[str, Any]]:
     positionals: list[str] = []
     options: dict[str, Any] = {}
-    boolean_flags = {"--json", "--no-input", "--force", "--overwrite", "--dry-run", "--wait"}
+    boolean_flags = {"--json", "--no-input", "--force", "--overwrite", "--overwrite-claims", "--dry-run", "--wait"}
     index = 0
     while index < len(args):
         arg = args[index]
@@ -493,6 +523,491 @@ def load_json_file(path_value: str | None, label: str) -> tuple[dict[str, Any] |
             code=3,
             error_code="validation_failed",
         )
+
+
+def parse_scalar(value: str) -> Any:
+    value = value.strip()
+    if value == "null":
+        return None
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    if value.startswith("[") and value.endswith("]"):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [parse_scalar(part.strip()) for part in inner.split(",")]
+    return value.strip('"').strip("'")
+
+
+def extract_yaml_block(text: str, top_key: str) -> str | None:
+    blocks = re.findall(r"```ya?ml\n(.*?)\n```", text, flags=re.DOTALL)
+    for block in reversed(blocks):
+        if re.search(rf"^{re.escape(top_key)}:\s*$", block, flags=re.MULTILINE):
+            return block
+    return None
+
+
+def parse_yaml_subset(block: str) -> dict[str, Any]:
+    root: dict[str, Any] = {}
+    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
+    lines = block.splitlines()
+    index = 0
+
+    while index < len(lines):
+        raw = lines[index]
+        index += 1
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        line = raw.strip()
+        if line.startswith("- "):
+            continue
+        if ":" not in line:
+            continue
+
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        while stack and indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+
+        if value == "|":
+            block_lines: list[str] = []
+            while index < len(lines):
+                next_raw = lines[index]
+                next_indent = len(next_raw) - len(next_raw.lstrip(" "))
+                if next_raw.strip() and next_indent <= indent:
+                    break
+                block_lines.append(next_raw[indent + 2 :] if len(next_raw) > indent + 2 else "")
+                index += 1
+            parent[key] = "\n".join(block_lines).strip()
+            continue
+
+        if value:
+            parent[key] = parse_scalar(value)
+            continue
+
+        child: dict[str, Any] = {}
+        parent[key] = child
+        stack.append((indent, child))
+
+    return root
+
+
+def extract_frontmatter(text: str) -> dict[str, Any]:
+    if not text.startswith("---\n"):
+        return {}
+    marker = text.find("\n---", 4)
+    if marker == -1:
+        return {}
+    return parse_yaml_subset(text[4:marker])
+
+
+def iso_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def parse_datetime_value(value: str) -> datetime | None:
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def datetime_from_date(date_value: str) -> str:
+    parsed = datetime.fromisoformat(date_value).replace(tzinfo=timezone.utc)
+    return parsed.isoformat()
+
+
+def find_iso_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = re.search(r"\d{4}-\d{2}-\d{2}", value)
+    return match.group(0) if match else None
+
+
+def repo_metadata(repo_path: Path) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if not repo_path.exists():
+        return None, {
+            "message": "repo path was not found",
+            "hint": f"Expected a git checkout at {repo_path}.",
+            "code": 4,
+        }
+    root_result = run_git(["rev-parse", "--show-toplevel"], cwd=repo_path)
+    if root_result.returncode != 0:
+        return None, {
+            "message": "repo path is not a git checkout",
+            "hint": "Pass --repo <path> pointing at a git repository.",
+            "code": 4,
+        }
+    root = Path(root_result.stdout.strip())
+    commit_result = run_git(["rev-parse", "HEAD"], cwd=root)
+    if commit_result.returncode != 0:
+        return None, {
+            "message": "git rev-parse HEAD failed",
+            "hint": commit_result.stderr.strip() or "Check that the repository has a commit.",
+            "code": 6,
+        }
+    remote_result = run_git(["remote", "get-url", "origin"], cwd=root)
+    return {
+        "name": root.name,
+        "root": str(root),
+        "remote": remote_result.stdout.strip() if remote_result.returncode == 0 and remote_result.stdout.strip() else None,
+        "commit": commit_result.stdout.strip(),
+    }, None
+
+
+def source_identity(options: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    source_id = options.get("source_analyzer_id")
+    if source_id:
+        kind = options.get("source_kind") or "unknown"
+        if kind not in ENUMS["analyzer_kind"]:
+            warnings.append(f"Unknown source kind {kind!r}; using 'unknown'.")
+            kind = "unknown"
+        return {
+            "id": source_id,
+            "kind": kind,
+            "model": options.get("source_model"),
+            "tool_context": options.get("source_tool_context") or "pre-bootstrap review",
+            "prompt_set_version": options.get("source_prompt_set_version") or "repo-review-pre-v1",
+            "notes": options.get("source_notes") or "Original prose reviewer supplied during bootstrap.",
+        }, warnings
+    warnings.append("Original reviewer identity was not supplied; using unknown-pre-bootstrap.")
+    return {
+        "id": "unknown-pre-bootstrap",
+        "kind": "unknown",
+        "model": None,
+        "tool_context": "pre-bootstrap review",
+        "prompt_set_version": "repo-review-pre-v1",
+        "notes": "Original prose reviewer was not supplied during bootstrap.",
+    }, warnings
+
+
+def infer_pass_id(path: Path, text: str) -> tuple[str, str, list[str], str]:
+    warnings: list[str] = []
+    block = extract_yaml_block(text, "pass_output")
+    if block:
+        parsed = parse_yaml_subset(block).get("pass_output", {})
+        pass_id = parsed.get("pass_id") if isinstance(parsed, dict) else None
+        if pass_id:
+            return str(pass_id), "pass_output.pass_id", warnings, "prose-with-yaml-appendix"
+
+    frontmatter = extract_frontmatter(text)
+    if frontmatter.get("pass_id"):
+        return str(frontmatter["pass_id"]), "frontmatter.pass_id", warnings, "prose" if not block else "prose-with-yaml-appendix"
+
+    stem = path.stem.lower()
+    patterns = [
+        ("first-read", "first-read"),
+        ("discounted-artifact", "discounted-artifact"),
+        ("trace", "trace"),
+        ("twin", "twin"),
+        ("lift-addendum", "lift-addendum"),
+        ("lift", "lift"),
+        ("synthesis", "synthesis"),
+    ]
+    for needle, pass_id in patterns:
+        if needle in stem:
+            warnings.append(f"Pass id inferred from filename pattern: {pass_id}.")
+            return pass_id, "filename-pattern", warnings, "prose" if not block else "prose-with-yaml-appendix"
+    if stem.startswith("03-"):
+        warnings.append("Pass id inferred from 03-* filename pattern: synthesis.")
+        return "synthesis", "filename-pattern", warnings, "prose" if not block else "prose-with-yaml-appendix"
+    if stem.startswith("06-"):
+        warnings.append("Pass id inferred from 06-* filename pattern: lift-addendum.")
+        return "lift-addendum", "filename-pattern", warnings, "prose" if not block else "prose-with-yaml-appendix"
+
+    fallback = re.sub(r"[^a-z0-9_.:-]+", "-", stem).strip("-") or "review"
+    warnings.append(f"Pass id conservatively inferred from filename stem: {fallback}.")
+    return fallback, "filename-stem", warnings, "prose" if not block else "prose-with-yaml-appendix"
+
+
+def relative_to_state(path: Path, state_path: Path) -> str:
+    try:
+        return os.path.relpath(path.resolve(), state_path.parent.resolve())
+    except ValueError:
+        return str(path.resolve())
+
+
+def discover_review_artifacts(review_dir: Path, output_path: Path) -> tuple[list[dict[str, Any]], list[str], int | None]:
+    discovered: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    mtimes: list[int] = []
+    if not review_dir.is_dir():
+        return discovered, [f"Review directory was not found: {review_dir}"], None
+    for path in sorted(review_dir.rglob("*.md")):
+        if path.name.startswith("."):
+            continue
+        text = path.read_text(encoding="utf-8")
+        pass_id, source, file_warnings, output_kind = infer_pass_id(path, text)
+        mtimes.append(int(path.stat().st_mtime))
+        item = {
+            "path": relative_to_state(path, output_path),
+            "absolute_path": str(path.resolve()),
+            "pass_id": pass_id,
+            "pass_id_source": source,
+            "output_kind": output_kind,
+            "warnings": file_warnings,
+        }
+        discovered.append(item)
+        warnings.extend(f"{path.name}: {warning}" for warning in file_warnings)
+        if output_kind == "prose":
+            warnings.append(f"{path.name}: no structured pass_output appendix found.")
+    return discovered, warnings, min(mtimes) if mtimes else None
+
+
+def infer_created_at(options: dict[str, Any], output_path: Path, review_state_id: str, oldest_mtime: int | None) -> tuple[str, list[str]]:
+    warnings: list[str] = []
+    if options.get("created_at"):
+        parsed = parse_datetime_value(options["created_at"])
+        if parsed is None:
+            warnings.append("--created-at was not valid ISO-8601; using current bootstrap time.")
+            return iso_now(), warnings
+        return parsed.isoformat(), warnings
+    date_value = find_iso_date(review_state_id) or find_iso_date(str(output_path))
+    if date_value:
+        return datetime_from_date(date_value), warnings
+    if oldest_mtime is not None:
+        warnings.append("Original review date inferred from oldest discovered file mtime.")
+        return datetime.fromtimestamp(oldest_mtime, tz=timezone.utc).replace(microsecond=0).isoformat(), warnings
+    warnings.append("Original review date unknown; using current bootstrap time.")
+    return iso_now(), warnings
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+    with temp_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    temp_path.replace(path)
+
+
+def validate_analyzer(analyzer: Any, label: str) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(analyzer, dict):
+        return [f"{label} must be an object."]
+    for key in ("id", "kind", "model", "tool_context"):
+        if key not in analyzer:
+            errors.append(f"{label}.{key} is required.")
+    if analyzer.get("kind") not in ENUMS["analyzer_kind"]:
+        errors.append(f"{label}.kind must be one of {', '.join(ENUMS['analyzer_kind'])}.")
+    if not analyzer.get("id"):
+        errors.append(f"{label}.id must be non-empty.")
+    if not analyzer.get("tool_context"):
+        errors.append(f"{label}.tool_context must be non-empty.")
+    return errors
+
+
+def validate_claim_shape(claim: Any, label: str, require_identity: bool = True) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(claim, dict):
+        return [f"{label} must be an object."]
+    required = [
+        "id",
+        "kind",
+        "subject",
+        "statement",
+        "evidence_refs",
+        "confidence",
+        "claim_status",
+        "depends_on_claims",
+        "related_claims",
+        "watch_paths",
+        "invalidation_triggers",
+        "contested_by",
+    ]
+    if require_identity:
+        required.append("produced_by_analyzer")
+    for key in required:
+        if key not in claim:
+            errors.append(f"{label}.{key} is required.")
+    if claim.get("confidence") not in ENUMS["confidence"]:
+        errors.append(f"{label}.confidence must be one of {', '.join(ENUMS['confidence'])}.")
+    if claim.get("claim_status") not in ENUMS["claim_status"]:
+        errors.append(f"{label}.claim_status must be one of {', '.join(ENUMS['claim_status'])}.")
+    subject = claim.get("subject")
+    if not isinstance(subject, dict) or not subject.get("type") or not subject.get("ref"):
+        errors.append(f"{label}.subject must include type and ref.")
+    for key in ("evidence_refs", "depends_on_claims", "related_claims", "watch_paths", "invalidation_triggers", "contested_by"):
+        if key in claim and not isinstance(claim[key], list):
+            errors.append(f"{label}.{key} must be an array.")
+    if "produced_by_analyzer" in claim:
+        errors.extend(validate_analyzer(claim["produced_by_analyzer"], f"{label}.produced_by_analyzer"))
+    return errors
+
+
+def validate_review_state_shape(state: Any) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(state, dict):
+        return ["review state must be an object."]
+    for key in ("schema_version", "id", "repo", "mode", "created_at", "produced_by_analyzer", "pass_outputs", "claims", "drift_surface", "limits"):
+        if key not in state:
+            errors.append(f"{key} is required.")
+    if state.get("schema_version") != SCHEMA_VERSION:
+        errors.append("schema_version must be 1.")
+    if state.get("mode") not in ENUMS["review_mode"]:
+        errors.append("mode must be full or delta.")
+    errors.extend(validate_analyzer(state.get("produced_by_analyzer"), "produced_by_analyzer"))
+    repo = state.get("repo")
+    if not isinstance(repo, dict) or not all(repo.get(key) for key in ("name", "root", "commit")) or "remote" not in repo:
+        errors.append("repo must include name, root, remote, and commit.")
+    for index, output in enumerate(state.get("pass_outputs", []) if isinstance(state.get("pass_outputs"), list) else []):
+        label = f"pass_outputs[{index}]"
+        if not isinstance(output, dict):
+            errors.append(f"{label} must be an object.")
+            continue
+        for key in ("pass_id", "path", "output_kind", "produced_by_analyzer"):
+            if key not in output:
+                errors.append(f"{label}.{key} is required.")
+        errors.extend(validate_analyzer(output.get("produced_by_analyzer"), f"{label}.produced_by_analyzer"))
+    if not isinstance(state.get("claims"), list):
+        errors.append("claims must be an array.")
+    else:
+        for index, claim in enumerate(state["claims"]):
+            errors.extend(validate_claim_shape(claim, f"claims[{index}]", require_identity=True))
+    if not isinstance(state.get("limits"), list):
+        errors.append("limits must be an array.")
+    return errors
+
+
+def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing state subcommand", "Use one of: bootstrap.", valid_values=["bootstrap"]), None
+    subcommand = positionals[0]
+    if subcommand != "bootstrap":
+        return fail(f"unknown state subcommand '{subcommand}'", "Use one of: bootstrap.", valid_values=["bootstrap"]), None
+
+    missing = [flag for flag in ("repo", "review_dir", "output") if not options.get(flag)]
+    if missing:
+        return fail(
+            "missing required bootstrap input",
+            "Run: repo-review state bootstrap --repo <path> --review-dir <path> --output <review-state.json> --json --no-input",
+            valid_values=[f"--{flag.replace('_', '-')}" for flag in missing],
+        ), None
+
+    repo_path = Path(options["repo"]).expanduser().resolve()
+    review_dir = Path(options["review_dir"]).expanduser().resolve()
+    output_path = Path(options["output"]).expanduser().resolve()
+    provenance_path = output_path.with_name("review-state.bootstrap.json")
+    if not options.get("dry_run") and not options.get("overwrite"):
+        existing = [str(path) for path in (output_path, provenance_path) if path.exists()]
+        if existing:
+            return fail(
+                "output path already exists",
+                "Add --overwrite to replace the existing review state or provenance sidecar.",
+                code=5,
+                error_code="unsafe_mutation_refused",
+                valid_values=["--overwrite"],
+            ), None
+
+    repo, repo_error = repo_metadata(repo_path)
+    if repo_error:
+        return fail(repo_error["message"], repo_error["hint"], code=repo_error["code"], error_code="resource_not_found" if repo_error["code"] == 4 else "external_command_failed"), None
+    assert repo is not None
+
+    source, identity_warnings = source_identity(options)
+    default_id_date = find_iso_date(str(output_path)) or datetime.now(timezone.utc).date().isoformat()
+    review_state_id = options.get("review_state_id") or f"{repo['name']}-full-{default_id_date}"
+    discovered, discovery_warnings, oldest_mtime = discover_review_artifacts(review_dir, output_path)
+    created_at, date_warnings = infer_created_at(options, output_path, review_state_id, oldest_mtime)
+    warnings = [*identity_warnings, *discovery_warnings, *date_warnings]
+
+    limits = [
+        "converted-from-pre-cli-prose",
+        "claims-not-extracted",
+        "requires-claim-selection",
+        "bootstrap-provenance-sidecar",
+    ]
+    if any(item["output_kind"] == "prose" for item in discovered):
+        limits.append("some-pass-outputs-lack-structured-appendix")
+    if any(item["pass_id_source"].startswith("filename") for item in discovered):
+        limits.append("pass-order-inferred-from-filenames")
+    if source["id"] == "unknown-pre-bootstrap":
+        limits.append("source-reviewer-identity-unknown")
+    if any("Original review date unknown" in warning for warning in warnings):
+        limits.append("original-review-date-unknown")
+
+    state = {
+        "schema_version": SCHEMA_VERSION,
+        "id": review_state_id,
+        "repo": repo,
+        "mode": "full",
+        "created_at": created_at,
+        "produced_by_analyzer": source,
+        "pass_outputs": [
+            {
+                "pass_id": item["pass_id"],
+                "path": item["path"],
+                "output_kind": item["output_kind"],
+                "produced_by_analyzer": source,
+            }
+            for item in discovered
+        ],
+        "claims": [],
+        "drift_surface": None,
+        "limits": limits,
+    }
+    validation_errors = validate_review_state_shape(state)
+    if validation_errors:
+        return fail(
+            "generated review state is invalid",
+            "; ".join(validation_errors),
+            code=3,
+            error_code="validation_failed",
+        ), None
+
+    provenance = {
+        "schema_version": SCHEMA_VERSION,
+        "review_state": review_state_id,
+        "created_at": iso_now(),
+        "bootstrap_tool": {
+            "id": "repo-review-cli",
+            "kind": "tool",
+            "model": None,
+            "tool_context": "repo-review state bootstrap",
+        },
+        "source_identity": source,
+        "inputs": {
+            "repo": str(repo_path),
+            "review_dir": str(review_dir),
+            "output": str(output_path),
+        },
+        "discovered_files": discovered,
+        "warnings": warnings,
+    }
+
+    if not options.get("dry_run"):
+        atomic_write_json(output_path, state)
+        atomic_write_json(provenance_path, provenance)
+
+    next_commands = [
+        f"repo-review aggregate --review-state {output_path} --json --no-input",
+        f"repo-review claims list --review-state {output_path} --json --no-input",
+        f"repo-review diff --repo {repo['root']} --range <from>..<to> --json --no-input",
+    ]
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "created": not bool(options.get("dry_run")),
+        "dry_run": bool(options.get("dry_run")),
+        "output": str(output_path),
+        "provenance": str(provenance_path),
+        "review_state_id": review_state_id,
+        "pass_outputs": len(discovered),
+        "claims": 0,
+        "discovered_files": discovered,
+        "warnings": warnings,
+        "next_commands": next_commands,
+    }
+    return 0, payload
 
 
 def option_values(options: dict[str, Any], key: str) -> list[str]:
@@ -840,7 +1355,7 @@ def qualify_claim_id(review_state_id: str, claim_id: str) -> str:
 
 def claims_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
-        return fail("missing claims subcommand", "Use one of: list, get, affected.", valid_values=["list", "get", "affected"]), None
+        return fail("missing claims subcommand", "Use one of: list, get, affected, import.", valid_values=["list", "get", "affected", "import"]), None
     subcommand, *rest = positionals
 
     if subcommand == "affected":
@@ -857,6 +1372,9 @@ def claims_command(positionals: list[str], options: dict[str, Any]) -> tuple[int
             for claim in impact_plan.get("impacted_claims", [])
         ]
         return 0, {"schema_version": SCHEMA_VERSION, "from_review": from_review, "affected_claims": affected}
+
+    if subcommand == "import":
+        return claims_import_command(options)
 
     review_state, code = load_json_file(options.get("review_state"), "review-state")
     if code != 0:
@@ -913,7 +1431,152 @@ def claims_command(positionals: list[str], options: dict[str, Any]) -> tuple[int
                 }
         return fail("claim was not found", f"No claim '{rest[0]}' exists in review state {review_state_id}.", code=4, error_code="resource_not_found"), None
 
-    return fail(f"unknown claims subcommand '{subcommand}'", "Use one of: list, get, affected.", valid_values=["list", "get", "affected"]), None
+    return fail(f"unknown claims subcommand '{subcommand}'", "Use one of: list, get, affected, import.", valid_values=["list", "get", "affected", "import"]), None
+
+
+def claims_import_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    review_state_path_value = options.get("review_state")
+    input_path_value = options.get("input")
+    review_state, code = load_json_file(review_state_path_value, "review-state")
+    if code != 0:
+        return code, None
+    candidate_file, code = load_json_file(input_path_value, "input")
+    if code != 0:
+        return code, None
+    assert review_state is not None
+    assert candidate_file is not None
+    review_state_id = review_state.get("id")
+
+    state_errors = validate_review_state_shape(review_state)
+    if state_errors:
+        return fail(
+            "review state is invalid",
+            "; ".join(state_errors),
+            code=3,
+            error_code="validation_failed",
+        ), None
+
+    if candidate_file.get("review_state") != review_state_id and not options.get("force"):
+        return fail(
+            "candidate claims target a different review state",
+            "Use a candidate file whose review_state matches the target, or pass --force after confirming the mismatch is intentional.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=["--force"],
+        ), None
+
+    source_identity_value = candidate_file.get("produced_by_analyzer")
+    source_errors = validate_analyzer(source_identity_value, "produced_by_analyzer")
+    if source_errors:
+        return fail(
+            "candidate file source identity is invalid",
+            "; ".join(source_errors),
+            code=3,
+            error_code="validation_failed",
+        ), None
+    assert isinstance(source_identity_value, dict)
+
+    candidates = candidate_file.get("candidate_claims")
+    if not isinstance(candidates, list):
+        return fail(
+            "candidate_claims must be an array",
+            "Provide candidate_claims as a list of human-authored claim objects.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=["candidate_claims"],
+        ), None
+
+    candidate_errors: list[str] = []
+    inherited_claims: list[dict[str, Any]] = []
+    seen_candidate_ids: set[str] = set()
+    duplicate_candidate_ids: list[str] = []
+    for index, candidate in enumerate(candidates):
+        label = f"candidate_claims[{index}]"
+        candidate_errors.extend(validate_claim_shape(candidate, label, require_identity=False))
+        if not isinstance(candidate, dict):
+            continue
+        claim_id = candidate.get("id")
+        if claim_id in seen_candidate_ids:
+            duplicate_candidate_ids.append(claim_id)
+        seen_candidate_ids.add(claim_id)
+        inherited = dict(candidate)
+        inherited.setdefault("produced_by_analyzer", source_identity_value)
+        candidate_errors.extend(validate_claim_shape(inherited, f"inherited_claims[{index}]", require_identity=True))
+        inherited_claims.append(inherited)
+    if duplicate_candidate_ids:
+        candidate_errors.append("candidate file contains duplicate claim IDs: " + ", ".join(sorted(set(duplicate_candidate_ids))))
+    if candidate_errors:
+        return fail(
+            "candidate claims are invalid",
+            "; ".join(candidate_errors),
+            code=3,
+            error_code="validation_failed",
+        ), None
+
+    existing_claims = list(review_state.get("claims", []))
+    existing_by_id = {claim.get("id"): claim for claim in existing_claims}
+    duplicates = [claim["id"] for claim in inherited_claims if claim["id"] in existing_by_id]
+    if duplicates and not options.get("overwrite_claims"):
+        return fail(
+            "duplicate claim IDs refused",
+            "Use --overwrite-claims to replace matching claims, or edit the candidate IDs.",
+            code=5,
+            error_code="unsafe_mutation_refused",
+            valid_values=["--overwrite-claims"],
+        ), None
+
+    replacing = set(duplicates) if options.get("overwrite_claims") else set()
+    preserved = [claim for claim in existing_claims if claim.get("id") not in replacing]
+    updated_claims = [*preserved, *inherited_claims]
+    updated_state = {**review_state, "claims": updated_claims}
+    final_errors = validate_review_state_shape(updated_state)
+    if final_errors:
+        return fail(
+            "imported review state would be invalid",
+            "; ".join(final_errors),
+            code=3,
+            error_code="validation_failed",
+        ), None
+
+    review_state_path = Path(str(review_state_path_value)).expanduser().resolve()
+    audit_log_path = review_state_path.with_name("review-state.imports.jsonl")
+    atomic_write_json(review_state_path, updated_state)
+    audit = {
+        "timestamp": iso_now(),
+        "review_state_id": review_state_id,
+        "review_state": str(review_state_path),
+        "candidate_claims_input": str(Path(str(input_path_value)).expanduser().resolve()),
+        "imported": len(inherited_claims),
+        "skipped": 0,
+        "duplicates": len(duplicates),
+        "replaced": len(replacing),
+        "warnings": candidate_file.get("warnings", []),
+        "tool_identity": {
+            "id": "repo-review-cli",
+            "kind": "tool",
+            "model": None,
+            "tool_context": "repo-review claims import",
+        },
+        "candidate_source_identity": source_identity_value,
+    }
+    with audit_log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(audit, sort_keys=True) + "\n")
+
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "review_state": str(review_state_path),
+        "review_state_id": review_state_id,
+        "imported": len(inherited_claims),
+        "skipped": 0,
+        "replaced": len(replacing),
+        "duplicates": duplicates,
+        "audit_log": str(audit_log_path),
+        "warnings": candidate_file.get("warnings", []),
+        "next_commands": [
+            f"repo-review claims list --review-state {review_state_path} --json --no-input",
+            f"repo-review impact --review-state {review_state_path} --diff-report <path> --json --no-input",
+        ],
+    }
 
 
 def analyzer_key(analyzer: dict[str, Any]) -> str:
@@ -1372,6 +2035,11 @@ def main(argv: list[str]) -> int:
         return emit_json(next_command(options))
     if command == "profile":
         code, payload = profile_command(positionals, options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
+    if command == "state":
+        code, payload = state_command(positionals, options)
         if code != 0:
             return code
         return emit_json(payload or {})

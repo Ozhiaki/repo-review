@@ -63,6 +63,31 @@ structured appendices and review-state files from that manual review then feed
 the CLI. The CLI helps with later maintenance: diff reports, impact plans,
 prompt packets, claim lookup, drift summaries, aggregation, and ingest records.
 
+If you have older prose reviews but no `review-state.json`, bootstrap a state
+shell before running maintenance commands:
+
+```bash
+./repo-review state bootstrap \
+  --repo /path/to/target-repo \
+  --review-dir /path/to/old-review-files \
+  --output /path/to/reviews/<repo>/full-<date>/review-state.json \
+  --source-analyzer-id <original-reviewer-id> \
+  --source-kind llm \
+  --json --no-input
+```
+
+Bootstrap preserves discovered Markdown review artifacts and writes
+`claims: []`. It does not invent durable claims from prose. After inspecting the
+old review, use `templates/bootstrap-candidate-claims.md` to author a candidate
+claims JSON file and import it:
+
+```bash
+./repo-review claims import \
+  --review-state /path/to/review-state.json \
+  --input /path/to/candidate-claims.json \
+  --json --no-input
+```
+
 For an incremental review of a changed repo, generate a diff report, map it to
 prior claims, and export a prompt packet:
 
@@ -136,6 +161,7 @@ Discovery and setup:
 ./repo-review skill-path --json
 ./repo-review status --json
 ./repo-review profile list --json --no-input
+./repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input
 ```
 
 Delta review:
@@ -153,6 +179,7 @@ Claims, drift, and aggregation:
 ./repo-review claims list --review-state <path> --json --no-input
 ./repo-review claims get <id> --review-state <path> --json --no-input
 ./repo-review claims affected --impact-plan <path> --json --no-input
+./repo-review claims import --review-state <path> --input <candidate-claims.json> --json --no-input
 ./repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input
 ./repo-review aggregate --review-state <path> --review-state <path> --json --no-input
 ```
@@ -193,6 +220,23 @@ Use helper templates for recurring review decisions:
 ls templates
 ```
 
+Migrate older prose reviews:
+
+```bash
+./repo-review state bootstrap \
+  --repo /path/to/repo \
+  --review-dir /path/to/legacy-review \
+  --output reviews/<repo>/full-<date>/review-state.json \
+  --dry-run \
+  --json --no-input
+```
+
+Remove `--dry-run` to write `review-state.json` and
+`review-state.bootstrap.json`. Then draft candidate claims with
+`templates/bootstrap-candidate-claims.md` and run `claims import`. Duplicate
+claim IDs are refused by default; use `--overwrite-claims` only when replacing
+matching durable claims intentionally.
+
 ## What Exists Today
 
 - Five staged review prompts.
@@ -201,8 +245,8 @@ ls templates
 - Initial schemas for pass output, claims, review state, diff reports, impact
   plans, and delta drift.
 - CLI commands for discovery, profiles, status, feedback, diffing, impact
-  planning, prompt export, ingestion, claims, drift, aggregation, and next-step
-  guidance.
+  planning, prompt export, ingestion, claims, state bootstrap, drift,
+  aggregation, and next-step guidance.
 - Calibration artifacts for repo-review itself.
 - A worked Oathweaver delta slice.
 - Helper templates for affected claims, invalidation triggers, drift summaries,
@@ -215,6 +259,7 @@ ls templates
 
 - It does not run a full review automatically.
 - It does not decide whether claims are true without reviewer judgment.
+- It does not silently convert old prose into durable claims during bootstrap.
 - It is not a security audit, style linter, or generic code-review tool.
 - It does not execute long-running analysis jobs in v1.
 - It does not deliver artifacts to webhooks in v1.
