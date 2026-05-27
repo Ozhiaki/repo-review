@@ -15,6 +15,19 @@ from typing import Any
 
 
 SCHEMA_VERSION = 1
+REVIEW_RUN_SCHEMA_VERSION = 1
+REVIEW_RUN_STATUSES = [
+    "created",
+    "diff_ready",
+    "impact_ready",
+    "prompt_ready",
+    "review_received",
+    "ingested",
+    "drift_ready",
+    "complete",
+    "blocked",
+    "failed",
+]
 ROOT = Path(__file__).resolve().parent
 MANIFEST_DIR = ROOT / "agent"
 MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
@@ -286,6 +299,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Start a full, delta, or bootstrap review workflow.",
             ["--json", "--no-input", "--mode", "--repo", "--range", "--review-state", "--output", "--new-run", "--dry-run"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="entrypoint",
             mutation=True,
             dry_run=True,
@@ -298,6 +312,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Report or apply the next safe action for an existing review run.",
             ["--json", "--no-input", "--run", "--latest", "--apply"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="resume",
             mutation=True,
             implemented=False,
@@ -308,6 +323,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Summarize one review run or the latest review run.",
             ["--json", "--no-input", "--run", "--latest"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="status",
             implemented=False,
         )
@@ -316,6 +332,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Assemble or update reviewer-ready prompt artifacts for a run.",
             ["--json", "--no-input", "--run", "--latest", "--output", "--deliver", "--overwrite", "--dry-run"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="artifact",
             mutation=True,
             dry_run=True,
@@ -326,6 +343,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Attach and ingest reviewer output for a run.",
             ["--json", "--no-input", "--run", "--latest", "--input", "--kind", "--attach-only", "--dry-run"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="ingest",
             mutation=True,
             dry_run=True,
@@ -336,6 +354,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Validate completion requirements and mark a run complete.",
             ["--json", "--no-input", "--run", "--latest", "--dry-run"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="finish",
             mutation=True,
             dry_run=True,
@@ -378,6 +397,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "List persisted review runs.",
             ["--json", "--no-input", "--repo", "--limit"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="runs",
             implemented=False,
         )
@@ -386,6 +406,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Return one persisted review run by ID.",
             ["--json", "--no-input", "--run"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="runs",
             implemented=False,
         )
@@ -394,6 +415,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
         **command_schema(
             "Prune completed review run records with explicit boundaries.",
             ["--json", "--no-input", "--repo", "--dry-run", "--force"],
+            output_schema="schemas/review_run.schema.json",
             workflow_role="runs",
             mutation=True,
             dry_run=True,
@@ -1149,6 +1171,66 @@ def validate_review_state_shape(state: Any) -> list[str]:
             errors.extend(validate_claim_shape(claim, f"claims[{index}]", require_identity=True))
     if not isinstance(state.get("limits"), list):
         errors.append("limits must be an array.")
+    return errors
+
+
+def migrate_review_run_record(record: Any) -> tuple[dict[str, Any] | None, list[str]]:
+    if not isinstance(record, dict):
+        return None, ["review run must be an object."]
+    schema_version = record.get("schema_version")
+    if schema_version == REVIEW_RUN_SCHEMA_VERSION:
+        return dict(record), []
+    if isinstance(schema_version, int) and schema_version > REVIEW_RUN_SCHEMA_VERSION:
+        return None, [
+            f"review run schema_version {schema_version} is newer than this CLI supports; upgrade repo-review before reading this run ledger."
+        ]
+    return None, [f"review run schema_version must be {REVIEW_RUN_SCHEMA_VERSION}."]
+
+
+def validate_review_run_shape(record: Any) -> list[str]:
+    migrated, migration_errors = migrate_review_run_record(record)
+    if migration_errors:
+        return migration_errors
+    assert migrated is not None
+    errors: list[str] = []
+    required = (
+        "schema_version",
+        "run_id",
+        "mode",
+        "status",
+        "repo",
+        "range",
+        "prior_review_state",
+        "output_dir",
+        "artifacts",
+        "human_decisions",
+        "warnings",
+        "created_at",
+        "updated_at",
+    )
+    for key in required:
+        if key not in migrated:
+            errors.append(f"missing required field: {key}.")
+    if migrated.get("mode") not in {"full", "delta", "bootstrap"}:
+        errors.append("mode must be one of: full, delta, bootstrap.")
+    if migrated.get("status") not in REVIEW_RUN_STATUSES:
+        errors.append(f"status must be one of: {', '.join(REVIEW_RUN_STATUSES)}.")
+    repo = migrated.get("repo")
+    if not isinstance(repo, dict):
+        errors.append("repo must be an object.")
+    else:
+        for key in ("name", "root", "remote", "commit"):
+            if key not in repo:
+                errors.append(f"repo.{key} is required.")
+    if not isinstance(migrated.get("artifacts"), dict):
+        errors.append("artifacts must be an object.")
+    if not isinstance(migrated.get("human_decisions"), list):
+        errors.append("human_decisions must be an array.")
+    if not isinstance(migrated.get("warnings"), list):
+        errors.append("warnings must be an array.")
+    for key in ("run_id", "output_dir", "created_at", "updated_at"):
+        if not isinstance(migrated.get(key), str) or not migrated.get(key):
+            errors.append(f"{key} must be a non-empty string.")
     return errors
 
 

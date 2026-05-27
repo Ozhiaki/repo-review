@@ -6,7 +6,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import importlib.util
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +44,17 @@ class AgentNativeCliTests(unittest.TestCase):
 
     def assert_has_keys(self, payload: dict, keys: set[str]) -> None:
         self.assertTrue(keys <= payload.keys(), f"missing keys: {sorted(keys - payload.keys())}")
+
+    def load_cli_module(self) -> ModuleType:
+        loader = SourceFileLoader("repo_review_cli", str(CLI))
+        spec = importlib.util.spec_from_loader("repo_review_cli", loader)
+        self.assertIsNotNone(spec)
+        assert spec is not None
+        self.assertIsNotNone(spec.loader)
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     def write_legacy_reviews(self, directory: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
@@ -217,8 +231,56 @@ pass_output:
         self.assertTrue(export_prompt["dry_run"])
         self.assertEqual(export_prompt["flags"]["--deliver"]["type"], "delivery-scheme")
 
+        self.assertEqual(review_start["output_schema"], "schemas/review_run.schema.json")
+        self.assertEqual(schema["runs get"]["output_schema"], "schemas/review_run.schema.json")
+
         shipped_command_names = {command["name"] for command in payload["commands"]}
         self.assertNotIn("review start", shipped_command_names)
+
+    def test_review_run_schema_and_migration_helpers(self) -> None:
+        self.assertTrue((ROOT / "schemas/review_run.schema.json").is_file())
+        cli = self.load_cli_module()
+        run = {
+            "schema_version": 1,
+            "run_id": "repo-review-delta-2026-05-27-abc123",
+            "mode": "delta",
+            "status": "prompt_ready",
+            "repo": {
+                "name": "repo-review",
+                "root": str(ROOT),
+                "remote": None,
+                "commit": "abc123",
+            },
+            "range": "HEAD~1..HEAD",
+            "prior_review_state": "reviews/repo-review/full-2026-05-13/review-state.json",
+            "output_dir": "reviews/repo-review/delta-2026-05-27",
+            "artifacts": {
+                "diff_report": "diff-report.json",
+                "impact_plan": "impact-plan.json",
+                "prompt_packet": "delta-trace-prompt.md",
+                "review_artifact": None,
+                "drift_surface": None,
+            },
+            "human_decisions": [],
+            "warnings": [],
+            "created_at": "2026-05-27T00:00:00Z",
+            "updated_at": "2026-05-27T00:00:00Z",
+        }
+        migrated, migration_errors = cli.migrate_review_run_record(run)
+        self.assertEqual(migration_errors, [])
+        self.assertEqual(migrated, run)
+        self.assertEqual(cli.validate_review_run_shape(run), [])
+
+        future_run = {**run, "schema_version": 99}
+        migrated, migration_errors = cli.migrate_review_run_record(future_run)
+        self.assertIsNone(migrated)
+        self.assertIn("newer than this CLI supports", migration_errors[0])
+        self.assertIn("newer than this CLI supports", cli.validate_review_run_shape(future_run)[0])
+
+        invalid_run = {**run, "status": "unknown", "repo": {"name": "repo-review"}}
+        validation_errors = cli.validate_review_run_shape(invalid_run)
+        self.assertTrue(any("status must be one of" in error for error in validation_errors))
+        self.assertTrue(any("repo.root is required" in error for error in validation_errors))
 
     def test_profile_precedence_flag_env_profile_default(self) -> None:
         profile_name = "test-precedence"

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/review_run.schema.json",
+  "title": "repo-review review run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "mode",
+    "status",
+    "repo",
+    "range",
+    "prior_review_state",
+    "output_dir",
+    "artifacts",
+    "human_decisions",
+    "warnings",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["full", "delta", "bootstrap"]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "created",
+        "diff_ready",
+        "impact_ready",
+        "prompt_ready",
+        "review_received",
+        "ingested",
+        "drift_ready",
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    },
+    "repo": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/repoRef"
+        },
+        {
+          "required": ["commit"]
+        }
+      ]
+    },
+    "range": {
+      "type": ["string", "null"]
+    },
+    "prior_review_state": {
+      "type": ["string", "null"]
+    },
+    "output_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "null"]
+      },
+      "properties": {
+        "diff_report": {
+          "type": ["string", "null"]
+        },
+        "impact_plan": {
+          "type": ["string", "null"]
+        },
+        "prompt_packet": {
+          "type": ["string", "null"]
+        },
+        "review_artifact": {
+          "type": ["string", "null"]
+        },
+        "drift_surface": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "human_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
