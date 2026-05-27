@@ -398,9 +398,13 @@ pass_output:
 
         self.assertEqual(review_start["output_schema"], "schemas/review_run.schema.json")
         self.assertEqual(schema["runs get"]["output_schema"], "schemas/review_run.schema.json")
+        self.assertTrue(schema["runs list"]["implemented"])
+        self.assertTrue(schema["runs prune"]["mutation"])
+        self.assertEqual(schema["runs prune"]["allowed_mutation_outcomes"], ["updated", "unchanged", "dry_run"])
 
         shipped_command_names = {command["name"] for command in payload["commands"]}
         self.assertNotIn("review start", shipped_command_names)
+        self.assertIn("runs", shipped_command_names)
 
     def test_review_run_schema_and_migration_helpers(self) -> None:
         self.assertTrue((ROOT / "schemas/review_run.schema.json").is_file())
@@ -491,6 +495,49 @@ pass_output:
             records, errors = cli.read_review_run_ledger(repo_root)
             self.assertEqual(records, [])
             self.assertTrue(any("newer than this CLI supports" in error for error in errors))
+
+    def test_runs_commands_list_get_and_prune(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            first = self.review_run_record("run-1")
+            complete = {**first, "status": "complete", "updated_at": "2026-05-27T02:00:00Z"}
+            second = self.review_run_record("run-2")
+            second["status"] = "created"
+            second["updated_at"] = "2026-05-27T01:30:00Z"
+            ledger.write_text(
+                "\n".join(json.dumps(record, sort_keys=True) for record in [first, complete, second]) + "\n",
+                encoding="utf-8",
+            )
+
+            listed = self.assert_json_stdout(self.run_cli("runs", "list", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual([run["run_id"] for run in listed["runs"]], ["run-1", "run-2"])
+            self.assertEqual(listed["runs"][0]["status"], "complete")
+            self.assert_human_stdout(self.run_cli("runs", "list", "--repo", str(repo_root), "--no-input"), "Runs")
+
+            fetched = self.assert_json_stdout(self.run_cli("runs", "get", "run-1", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual(fetched["run"]["status"], "complete")
+            self.assertIn("next_action", fetched)
+
+            missing = self.assert_json_stderr(self.run_cli("runs", "get", "missing", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual(missing["code"], "resource_not_found")
+            self.assertEqual(missing["path"], str(ledger))
+
+            dry_run = self.assert_json_stdout(self.run_cli("runs", "prune", "--repo", str(repo_root), "--dry-run", "--json", "--no-input"))
+            self.assertEqual(dry_run["mutation_outcome"], "dry_run")
+            self.assertEqual(dry_run["pruned_count"], 1)
+            self.assertEqual(dry_run["records_before"], 3)
+            self.assertEqual(dry_run["records_after"], 2)
+
+            refused = self.assert_json_stderr(self.run_cli("runs", "prune", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual(refused["code"], "unsafe_mutation_refused")
+            self.assertIn("--force", refused["valid_values"])
+
+            pruned = self.assert_json_stdout(self.run_cli("runs", "prune", "--repo", str(repo_root), "--force", "--json", "--no-input"))
+            self.assertEqual(pruned["mutation_outcome"], "updated")
+            self.assertEqual(pruned["pruned_count"], 1)
+            self.assertEqual(len(ledger.read_text(encoding="utf-8").splitlines()), 2)
 
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()

@@ -328,6 +328,19 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             allowed_mutation_outcomes=["created", "updated", "existing", "unchanged"],
         )
     },
+    "runs": {
+        **command_schema(
+            "List, inspect, and prune persisted review runs.",
+            ["--json", "--no-input", "--repo", "--run", "--limit", "--dry-run", "--force"],
+            subcommands=["list", "get", "prune"],
+            output_schema="schemas/review_run.schema.json",
+            workflow_role="runs",
+            mutation=True,
+            dry_run=True,
+            allowed_mutation_outcomes=["updated", "unchanged", "dry_run"],
+            examples=["repo-review runs list --repo . --json --no-input"],
+        )
+    },
     "state": {
         **command_schema(
             "Create and validate durable review-state artifacts.",
@@ -478,16 +491,14 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             ["--json", "--no-input", "--repo", "--limit"],
             output_schema="schemas/review_run.schema.json",
             workflow_role="runs",
-            implemented=False,
         )
     },
     "runs get": {
         **command_schema(
             "Return one persisted review run by ID.",
-            ["--json", "--no-input", "--run"],
+            ["--json", "--no-input", "--repo", "--run"],
             output_schema="schemas/review_run.schema.json",
             workflow_role="runs",
-            implemented=False,
         )
     },
     "runs prune": {
@@ -498,7 +509,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="runs",
             mutation=True,
             dry_run=True,
-            implemented=False,
             allowed_mutation_outcomes=["updated", "unchanged", "dry_run"],
         )
     },
@@ -577,6 +587,8 @@ def emit_json(payload: dict[str, Any]) -> int:
 
 def human_output_supported(command: str, positionals: list[str]) -> bool:
     if command in {"status", "diff", "impact", "export-prompt", "aggregate"}:
+        return True
+    if command == "runs" and positionals[:1] in (["list"], ["get"], ["prune"]):
         return True
     if command == "state" and positionals[:1] == ["bootstrap"]:
         return True
@@ -709,6 +721,47 @@ def human_aggregate(payload: dict[str, Any]) -> list[str]:
     ]
 
 
+def human_runs(payload: dict[str, Any]) -> list[str]:
+    action = payload.get("action")
+    if action == "get":
+        run = payload.get("run", {})
+        next_action = payload.get("next_action", {})
+        lines = [
+            "Run",
+            "",
+            f"ID: {run.get('run_id')}",
+            f"Mode: {run.get('mode')}",
+            f"Status: {run.get('status')}",
+            f"Repo: {(run.get('repo') or {}).get('root')}",
+            f"Updated: {run.get('updated_at')}",
+        ]
+        if next_action.get("recommended_command"):
+            lines.extend(["", "Next:", f"  {next_action['recommended_command']}"])
+        return lines
+    if action == "prune":
+        return [
+            "Runs prune",
+            "",
+            f"Ledger: {payload.get('ledger')}",
+            f"Outcome: {payload.get('mutation_outcome')}",
+            f"Records before: {payload.get('records_before')}",
+            f"Records after: {payload.get('records_after')}",
+            f"Would prune: {payload.get('pruned_count')}" if payload.get("dry_run") else f"Pruned: {payload.get('pruned_count')}",
+        ]
+    truncation = payload.get("truncation", {})
+    lines = [
+        "Runs",
+        "",
+        f"Ledger: {payload.get('ledger')}",
+        f"Shown: {truncation.get('shown', len(payload.get('runs', [])))} of {truncation.get('total', len(payload.get('runs', [])))}",
+    ]
+    for run in payload.get("runs", [])[:10]:
+        lines.append(f"  {run.get('run_id')}: {run.get('status')} {run.get('mode')} updated {run.get('updated_at')}")
+    if truncation.get("truncated"):
+        lines.append("Warning: output was truncated; rerun with a higher --limit.")
+    return lines
+
+
 def emit_result(command: str, positionals: list[str], payload: dict[str, Any], json_mode: bool) -> int:
     if json_mode:
         return emit_json(payload)
@@ -726,6 +779,8 @@ def emit_result(command: str, positionals: list[str], payload: dict[str, Any], j
         return emit_human(human_claims_list(payload))
     if command == "aggregate":
         return emit_human(human_aggregate(payload))
+    if command == "runs":
+        return emit_human(human_runs(payload))
     return fail(f"{command} requires --json in the current CLI slice", f"Run: repo-review {command} --json")
 
 
@@ -1613,6 +1668,19 @@ def append_review_run_record(repo_root: Path, record: dict[str, Any]) -> tuple[d
     return migrated, []
 
 
+def write_review_run_ledger(repo_root: Path, records: list[dict[str, Any]]) -> list[str]:
+    for index, record in enumerate(records):
+        validation_errors = validate_review_run_shape(record)
+        if validation_errors:
+            return [f"records[{index}]: {error}" for error in validation_errors]
+    path = review_run_ledger_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return []
+
+
 def update_review_run_record(repo_root: Path, run_id: str, updates: dict[str, Any], updated_at: str | None = None) -> tuple[dict[str, Any] | None, list[str]]:
     current, errors = get_review_run_record(repo_root, run_id)
     if errors:
@@ -1621,6 +1689,119 @@ def update_review_run_record(repo_root: Path, run_id: str, updates: dict[str, An
         return None, [f"review run '{run_id}' was not found in {review_run_ledger_path(repo_root)}."]
     updated = {**current, **updates, "run_id": run_id, "updated_at": updated_at or utc_now()}
     return append_review_run_record(repo_root, updated)
+
+
+def summarize_run(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": record.get("run_id"),
+        "mode": record.get("mode"),
+        "status": record.get("status"),
+        "repo": record.get("repo"),
+        "range": record.get("range"),
+        "output_dir": record.get("output_dir"),
+        "updated_at": record.get("updated_at"),
+        "next_action": review_run_next_action(record.get("status")),
+    }
+
+
+def runs_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing runs subcommand", "Use one of: list, get, prune.", valid_values=["list", "get", "prune"]), None
+    subcommand, *rest = positionals
+    repo_root = Path(options.get("repo") or ROOT).expanduser().resolve()
+    ledger = review_run_ledger_path(repo_root)
+
+    if subcommand == "list":
+        records, errors = read_review_run_ledger(repo_root)
+        if errors:
+            return fail("run ledger is invalid", errors[0], code=3, error_code="validation_failed", path=str(ledger)), None
+        try:
+            limit = int(options.get("limit") or 20)
+        except (TypeError, ValueError):
+            return fail("invalid --limit", "Use a positive integer for --limit.", valid_values=["1", "20", "50"]), None
+        if limit < 1:
+            return fail("invalid --limit", "Use a positive integer for --limit.", valid_values=["1", "20", "50"]), None
+        latest = sorted(latest_review_runs(records).values(), key=lambda item: item.get("updated_at", ""), reverse=True)
+        shown = latest[:limit]
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "list",
+            "repo_root": str(repo_root),
+            "ledger": str(ledger),
+            "runs": [summarize_run(record) for record in shown],
+            "truncation": {
+                "limit": limit,
+                "shown": len(shown),
+                "total": len(latest),
+                "truncated": len(latest) > len(shown),
+            },
+        }
+
+    if subcommand == "get":
+        run_id = options.get("run") or (rest[0] if rest else None)
+        if not run_id:
+            return fail("missing run id", "Run: repo-review runs get <run-id> --json --no-input", valid_values=["--run"]), None
+        record, errors = get_review_run_record(repo_root, run_id)
+        if errors:
+            return fail("run ledger is invalid", errors[0], code=3, error_code="validation_failed", path=str(ledger)), None
+        if record is None:
+            return fail(
+                "review run was not found",
+                f"No run '{run_id}' exists in {ledger}.",
+                code=4,
+                error_code="resource_not_found",
+                path=str(ledger),
+            ), None
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "get",
+            "repo_root": str(repo_root),
+            "ledger": str(ledger),
+            "run": record,
+            "next_action": review_run_next_action(record["status"]),
+        }
+
+    if subcommand == "prune":
+        records, errors = read_review_run_ledger(repo_root)
+        if errors:
+            return fail("run ledger is invalid", errors[0], code=3, error_code="validation_failed", path=str(ledger)), None
+        latest = latest_review_runs(records)
+        keep: list[dict[str, Any]] = []
+        pruned_count = 0
+        for record in records:
+            latest_record = latest[record["run_id"]]
+            if latest_record.get("status") == "complete" and record is not latest_record:
+                pruned_count += 1
+            else:
+                keep.append(record)
+        dry_run = bool(options.get("dry_run"))
+        if not dry_run and not options.get("force"):
+            return fail(
+                "unsafe prune refused",
+                "Run with --dry-run to inspect candidates or add --force to rewrite the run ledger.",
+                code=5,
+                error_code="unsafe_mutation_refused",
+                valid_values=["--dry-run", "--force"],
+            ), None
+        if not dry_run:
+            errors = write_review_run_ledger(repo_root, keep)
+            if errors:
+                return fail("run ledger rewrite failed", errors[0], code=3, error_code="validation_failed", path=str(ledger)), None
+        outcome = "dry_run" if dry_run else ("updated" if pruned_count else "unchanged")
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "prune",
+            "repo_root": str(repo_root),
+            "ledger": str(ledger),
+            "dry_run": dry_run,
+            "mutation_outcome": outcome,
+            "records_before": len(records),
+            "records_after": len(keep),
+            "pruned_count": pruned_count,
+            "kept_run_ids": sorted(latest),
+        }
+
+    return fail(f"unknown runs subcommand '{subcommand}'", "Use one of: list, get, prune.", valid_values=["list", "get", "prune"]), None
 
 
 def review_run_next_action(status: str) -> dict[str, Any]:
@@ -2802,6 +2983,11 @@ def main(argv: list[str]) -> int:
         if code != 0:
             return code
         return emit_json(payload or {})
+    if command == "runs":
+        code, payload = runs_command(positionals, options)
+        if code != 0:
+            return code
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "state":
         code, payload = state_command(positionals, options)
         if code != 0:
