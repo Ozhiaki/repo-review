@@ -144,6 +144,10 @@ HELPER_TEMPLATES = [
 ]
 
 
+def utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 FLAG_SCHEMA: dict[str, dict[str, Any]] = {
     "--json": {"type": "boolean", "required": True, "default": False},
     "--no-input": {"type": "boolean", "required": False, "default": False},
@@ -1481,6 +1485,18 @@ def migrate_review_run_record(record: Any) -> tuple[dict[str, Any] | None, list[
     schema_version = record.get("schema_version")
     if schema_version == REVIEW_RUN_SCHEMA_VERSION:
         return dict(record), []
+    if schema_version == 0:
+        migrated = dict(record)
+        migrated["schema_version"] = REVIEW_RUN_SCHEMA_VERSION
+        migrated.setdefault("range", None)
+        migrated.setdefault("prior_review_state", None)
+        migrated.setdefault("artifacts", {})
+        migrated.setdefault("human_decisions", [])
+        migrated.setdefault("warnings", [])
+        repo = dict(migrated.get("repo") or {})
+        repo.setdefault("remote", None)
+        migrated["repo"] = repo
+        return migrated, []
     if isinstance(schema_version, int) and schema_version > REVIEW_RUN_SCHEMA_VERSION:
         return None, [
             f"review run schema_version {schema_version} is newer than this CLI supports; upgrade repo-review before reading this run ledger."
@@ -1533,6 +1549,78 @@ def validate_review_run_shape(record: Any) -> list[str]:
         if not isinstance(migrated.get(key), str) or not migrated.get(key):
             errors.append(f"{key} must be a non-empty string.")
     return errors
+
+
+def review_run_ledger_path(repo_root: Path) -> Path:
+    return repo_root / ".repo-review" / "runs.jsonl"
+
+
+def read_review_run_ledger(repo_root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    path = review_run_ledger_path(repo_root)
+    if not path.exists():
+        return [], []
+    records: list[dict[str, Any]] = []
+    errors: list[str] = []
+    with path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            raw = line.strip()
+            if not raw:
+                continue
+            try:
+                loaded = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{path}: line {line_number} is not valid JSON: {exc.msg}.")
+                continue
+            migrated, migration_errors = migrate_review_run_record(loaded)
+            if migration_errors:
+                errors.extend(f"{path}: line {line_number}: {error}" for error in migration_errors)
+                continue
+            assert migrated is not None
+            validation_errors = validate_review_run_shape(migrated)
+            if validation_errors:
+                errors.extend(f"{path}: line {line_number}: {error}" for error in validation_errors)
+                continue
+            records.append(migrated)
+    return records, errors
+
+
+def latest_review_runs(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for record in records:
+        latest[record["run_id"]] = record
+    return latest
+
+
+def get_review_run_record(repo_root: Path, run_id: str) -> tuple[dict[str, Any] | None, list[str]]:
+    records, errors = read_review_run_ledger(repo_root)
+    if errors:
+        return None, errors
+    return latest_review_runs(records).get(run_id), []
+
+
+def append_review_run_record(repo_root: Path, record: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    migrated, migration_errors = migrate_review_run_record(record)
+    if migration_errors:
+        return None, migration_errors
+    assert migrated is not None
+    validation_errors = validate_review_run_shape(migrated)
+    if validation_errors:
+        return None, validation_errors
+    path = review_run_ledger_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(migrated, sort_keys=True) + "\n")
+    return migrated, []
+
+
+def update_review_run_record(repo_root: Path, run_id: str, updates: dict[str, Any], updated_at: str | None = None) -> tuple[dict[str, Any] | None, list[str]]:
+    current, errors = get_review_run_record(repo_root, run_id)
+    if errors:
+        return None, errors
+    if current is None:
+        return None, [f"review run '{run_id}' was not found in {review_run_ledger_path(repo_root)}."]
+    updated = {**current, **updates, "run_id": run_id, "updated_at": updated_at or utc_now()}
+    return append_review_run_record(repo_root, updated)
 
 
 def review_run_next_action(status: str) -> dict[str, Any]:

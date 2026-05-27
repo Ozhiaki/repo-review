@@ -116,6 +116,34 @@ pass_output:
             "contested_by": [],
         }
 
+    def review_run_record(self, run_id: str = "repo-review-delta-2026-05-27-abc123") -> dict:
+        return {
+            "schema_version": 1,
+            "run_id": run_id,
+            "mode": "delta",
+            "status": "prompt_ready",
+            "repo": {
+                "name": "repo-review",
+                "root": str(ROOT),
+                "remote": None,
+                "commit": "abc123",
+            },
+            "range": "HEAD~1..HEAD",
+            "prior_review_state": "reviews/repo-review/full-2026-05-13/review-state.json",
+            "output_dir": "reviews/repo-review/delta-2026-05-27",
+            "artifacts": {
+                "diff_report": "diff-report.json",
+                "impact_plan": "impact-plan.json",
+                "prompt_packet": "delta-trace-prompt.md",
+                "review_artifact": None,
+                "drift_surface": None,
+            },
+            "human_decisions": [],
+            "warnings": [],
+            "created_at": "2026-05-27T00:00:00Z",
+            "updated_at": "2026-05-27T00:00:00Z",
+        }
+
     def test_json_commands_emit_parseable_stdout_only(self) -> None:
         for args in [
             ("agent-context", "--json"),
@@ -377,36 +405,23 @@ pass_output:
     def test_review_run_schema_and_migration_helpers(self) -> None:
         self.assertTrue((ROOT / "schemas/review_run.schema.json").is_file())
         cli = self.load_cli_module()
-        run = {
-            "schema_version": 1,
-            "run_id": "repo-review-delta-2026-05-27-abc123",
-            "mode": "delta",
-            "status": "prompt_ready",
-            "repo": {
-                "name": "repo-review",
-                "root": str(ROOT),
-                "remote": None,
-                "commit": "abc123",
-            },
-            "range": "HEAD~1..HEAD",
-            "prior_review_state": "reviews/repo-review/full-2026-05-13/review-state.json",
-            "output_dir": "reviews/repo-review/delta-2026-05-27",
-            "artifacts": {
-                "diff_report": "diff-report.json",
-                "impact_plan": "impact-plan.json",
-                "prompt_packet": "delta-trace-prompt.md",
-                "review_artifact": None,
-                "drift_surface": None,
-            },
-            "human_decisions": [],
-            "warnings": [],
-            "created_at": "2026-05-27T00:00:00Z",
-            "updated_at": "2026-05-27T00:00:00Z",
-        }
+        run = self.review_run_record()
         migrated, migration_errors = cli.migrate_review_run_record(run)
         self.assertEqual(migration_errors, [])
         self.assertEqual(migrated, run)
         self.assertEqual(cli.validate_review_run_shape(run), [])
+
+        v0_run = dict(run)
+        v0_run.pop("human_decisions")
+        v0_run.pop("warnings")
+        v0_run["schema_version"] = 0
+        migrated, migration_errors = cli.migrate_review_run_record(v0_run)
+        self.assertEqual(migration_errors, [])
+        self.assertIsNotNone(migrated)
+        assert migrated is not None
+        self.assertEqual(migrated["schema_version"], 1)
+        self.assertEqual(migrated["human_decisions"], [])
+        self.assertEqual(migrated["warnings"], [])
 
         future_run = {**run, "schema_version": 99}
         migrated, migration_errors = cli.migrate_review_run_record(future_run)
@@ -418,6 +433,64 @@ pass_output:
         validation_errors = cli.validate_review_run_shape(invalid_run)
         self.assertTrue(any("status must be one of" in error for error in validation_errors))
         self.assertTrue(any("repo.root is required" in error for error in validation_errors))
+
+    def test_review_run_ledger_create_read_update_and_errors(self) -> None:
+        cli = self.load_cli_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            run = self.review_run_record("run-1")
+            saved, errors = cli.append_review_run_record(repo_root, run)
+            self.assertEqual(errors, [])
+            self.assertEqual(saved, run)
+            self.assertTrue((repo_root / ".repo-review" / "runs.jsonl").is_file())
+
+            records, errors = cli.read_review_run_ledger(repo_root)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["run_id"], "run-1")
+
+            fetched, errors = cli.get_review_run_record(repo_root, "run-1")
+            self.assertEqual(errors, [])
+            self.assertEqual(fetched, run)
+
+            updated, errors = cli.update_review_run_record(
+                repo_root,
+                "run-1",
+                {"status": "complete"},
+                updated_at="2026-05-27T01:00:00Z",
+            )
+            self.assertEqual(errors, [])
+            self.assertIsNotNone(updated)
+            assert updated is not None
+            self.assertEqual(updated["created_at"], run["created_at"])
+            self.assertEqual(updated["updated_at"], "2026-05-27T01:00:00Z")
+            self.assertEqual(updated["status"], "complete")
+
+            fetched, errors = cli.get_review_run_record(repo_root, "run-1")
+            self.assertEqual(errors, [])
+            self.assertEqual(fetched["status"], "complete")
+            records, errors = cli.read_review_run_ledger(repo_root)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(records), 2)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            ledger.write_text("{not json}\n", encoding="utf-8")
+            records, errors = cli.read_review_run_ledger(repo_root)
+            self.assertEqual(records, [])
+            self.assertTrue(any("not valid JSON" in error for error in errors))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp)
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            future_run = {**self.review_run_record("future-run"), "schema_version": 99}
+            ledger.write_text(json.dumps(future_run) + "\n", encoding="utf-8")
+            records, errors = cli.read_review_run_ledger(repo_root)
+            self.assertEqual(records, [])
+            self.assertTrue(any("newer than this CLI supports" in error for error in errors))
 
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
