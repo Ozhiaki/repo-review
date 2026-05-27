@@ -91,6 +91,14 @@ Lists and inspects persisted review runs in `.repo-review/runs.jsonl`.
 `runs prune --dry-run` reports completed-run ledger compaction candidates;
 non-dry-run pruning requires `--force` and keeps the latest record for every run.
 
+### `repo-review templates list --json --no-input`
+### `repo-review templates get --json --no-input`
+### `repo-review templates write --json --no-input`
+
+Lists registered helper templates, returns one template by ID, or writes a copy
+to `--output <path>` with overwrite protection. Workflow commands use these IDs
+when suggesting decision templates.
+
 ### `repo-review review start --mode delta --repo <path> --range <from>..<to> --review-state <id-or-path> --json --no-input`
 
 Starts or reuses a delta review run, writes diff, impact, and prompt artifacts,

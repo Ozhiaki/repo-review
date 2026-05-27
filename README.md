@@ -194,6 +194,9 @@ Claims, drift, and aggregation:
 ./repo-review runs list --repo <path> --json --no-input
 ./repo-review runs get <id> --repo <path> --json --no-input
 ./repo-review runs prune --repo <path> --dry-run --json --no-input
+./repo-review templates list --json --no-input
+./repo-review templates get <id> --json --no-input
+./repo-review templates write <id> --output <path> --json --no-input
 ```
 
 Use `--json` for stable machine output. Mutating commands should use

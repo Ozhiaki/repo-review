@@ -399,6 +399,17 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="status",
         )
     },
+    "templates": {
+        **command_schema(
+            "List, print, and write helper templates.",
+            ["--json", "--no-input", "--output", "--overwrite"],
+            subcommands=["list", "get", "write"],
+            workflow_role="templates",
+            mutation=True,
+            allowed_mutation_outcomes=["created", "unchanged"],
+            examples=["repo-review templates list --json --no-input"],
+        )
+    },
     "review start": {
         **command_schema(
             "Start a full, delta, or bootstrap review workflow.",
@@ -3629,6 +3640,72 @@ def status(options: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def template_by_id(template_id: str) -> dict[str, Any] | None:
+    for template in HELPER_TEMPLATES:
+        if template["id"] == template_id:
+            return template
+    return None
+
+
+def template_payload(template: dict[str, Any]) -> dict[str, Any]:
+    path = ROOT / template["path"]
+    return {
+        **template,
+        "absolute_path": str(path),
+        "exists": path.is_file(),
+    }
+
+
+def templates_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing templates subcommand", "Use one of: list, get, write.", valid_values=["list", "get", "write"]), None
+    subcommand, *rest = positionals
+    if subcommand == "list":
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "templates": [template_payload(template) for template in HELPER_TEMPLATES],
+            "suggestions": {
+                "candidate_claims": "bootstrap-candidate-claims",
+                "affected_claims": "affected-claims",
+                "drift": "drift-summary",
+                "contested": "contested-claim",
+            },
+        }
+    if subcommand in {"get", "write"}:
+        if not rest:
+            return fail("missing template id", f"Run: repo-review templates {subcommand} <id> --json --no-input", valid_values=[template["id"] for template in HELPER_TEMPLATES]), None
+        template = template_by_id(rest[0])
+        if template is None:
+            return fail(
+                "template was not found",
+                f"No helper template '{rest[0]}' is registered.",
+                code=4,
+                error_code="resource_not_found",
+                valid_values=[template["id"] for template in HELPER_TEMPLATES],
+            ), None
+        source_path = ROOT / template["path"]
+        text = source_path.read_text(encoding="utf-8")
+        payload = {"schema_version": SCHEMA_VERSION, "template": template_payload(template), "content": text}
+        if subcommand == "get":
+            return 0, payload
+        output = options.get("output")
+        if not output:
+            return fail("missing required --output", "Run: repo-review templates write <id> --output <path> --json --no-input", valid_values=["--output"]), None
+        output_path = Path(output).expanduser().resolve()
+        if output_path.exists() and not options.get("overwrite"):
+            return fail(
+                "output path already exists",
+                "Add --overwrite to replace the existing template copy.",
+                code=5,
+                error_code="unsafe_mutation_refused",
+                valid_values=["--overwrite"],
+            ), None
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text, encoding="utf-8")
+        return 0, {**payload, "output": str(output_path), "mutation_outcome": "created"}
+    return fail(f"unknown templates subcommand '{subcommand}'", "Use one of: list, get, write.", valid_values=["list", "get", "write"]), None
+
+
 def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
         values = ["list", "show", "save", "delete"]
@@ -3883,6 +3960,11 @@ def main(argv: list[str]) -> int:
         return emit_json(skill_path())
     if command == "status":
         return emit_result(command, positionals, status(options), json_mode)
+    if command == "templates":
+        code, payload = templates_command(positionals, options)
+        if code != 0:
+            return code
+        return emit_json(payload or {})
 
     return fail(f"command '{command}' is registered but not implemented", "Check agent-context for shipped commands.", code=1)
 

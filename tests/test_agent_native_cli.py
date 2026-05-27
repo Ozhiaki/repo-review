@@ -439,11 +439,43 @@ pass_output:
             "repo-review review continue",
             "repo-review review ingest",
             "repo-review review finish",
+            "repo-review templates list",
+            "repo-review templates get",
+            "repo-review templates write",
         ]
         for snippet in snippets:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, readme)
                 self.assertIn(snippet, manifest)
+
+    def test_template_commands_list_get_and_write(self) -> None:
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        schema = {command["name"]: command for command in payload["command_schema"]}
+        self.assertIn("templates", schema)
+        self.assertTrue(schema["templates"]["implemented"])
+        self.assertIn("bootstrap-candidate-claims", {template["id"] for template in payload["helper_templates"]})
+
+        listed = self.assert_json_stdout(self.run_cli("templates", "list", "--json", "--no-input"))
+        template_ids = {template["id"] for template in listed["templates"]}
+        self.assertIn("affected-claims", template_ids)
+        self.assertEqual(listed["suggestions"]["affected_claims"], "affected-claims")
+
+        fetched = self.assert_json_stdout(self.run_cli("templates", "get", "affected-claims", "--json", "--no-input"))
+        self.assertEqual(fetched["template"]["id"], "affected-claims")
+        self.assertIn("affected", fetched["content"].lower())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp).resolve() / "affected.md"
+            written = self.assert_json_stdout(
+                self.run_cli("templates", "write", "affected-claims", "--output", str(output), "--json", "--no-input")
+            )
+            self.assertEqual(written["output"], str(output))
+            self.assertTrue(output.is_file())
+            refused = self.assert_json_stderr(
+                self.run_cli("templates", "write", "affected-claims", "--output", str(output), "--json", "--no-input")
+            )
+            self.assertEqual(refused["code"], "unsafe_mutation_refused")
+            self.assertIn("--overwrite", refused["valid_values"])
 
     def test_artifact_delivery_schema_is_standardized(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
