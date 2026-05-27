@@ -305,6 +305,49 @@ pass_output:
         self.assertIsNone(review_run["statuses"]["blocked"]["recommended_command"])
         self.assertIsNone(review_run["statuses"]["failed"]["recommended_command"])
 
+    def test_mutation_outcome_contracts_are_recorded_per_command(self) -> None:
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        schema = {command["name"]: command for command in payload["command_schema"]}
+        allowed_outcomes = set(payload["mutation_outcomes"])
+        self.assertEqual(
+            allowed_outcomes,
+            {"created", "updated", "existing", "imported", "replaced", "unchanged", "dry_run"},
+        )
+
+        expected = {
+            "state": {"created", "existing", "replaced", "dry_run"},
+            "claims": {"created", "updated", "existing", "imported", "replaced", "unchanged", "dry_run"},
+            "review start": {"created", "existing", "updated", "dry_run"},
+            "review package": {"created", "existing", "updated", "dry_run"},
+            "review ingest": {"created", "updated", "existing", "imported", "unchanged", "dry_run"},
+            "review finish": {"updated", "unchanged", "dry_run"},
+            "runs prune": {"updated", "unchanged", "dry_run"},
+        }
+        for command_name, outcomes in expected.items():
+            with self.subTest(command=command_name):
+                command = schema[command_name]
+                self.assertTrue(command["mutation"])
+                self.assertTrue(set(command["allowed_mutation_outcomes"]) <= allowed_outcomes)
+                self.assertEqual(set(command["allowed_mutation_outcomes"]), outcomes)
+                if command["dry_run"]:
+                    self.assertIn("dry_run", command["allowed_mutation_outcomes"])
+
+        read_only_commands = [
+            "diff",
+            "impact",
+            "state validate",
+            "state latest",
+            "state list",
+            "state get",
+            "runs list",
+            "runs get",
+            "review status",
+        ]
+        for command_name in read_only_commands:
+            with self.subTest(command=command_name):
+                self.assertFalse(schema[command_name]["mutation"])
+                self.assertEqual(schema[command_name]["allowed_mutation_outcomes"], [])
+
     def test_profile_precedence_flag_env_profile_default(self) -> None:
         profile_name = "test-precedence"
         try:

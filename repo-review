@@ -16,6 +16,7 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 REVIEW_RUN_SCHEMA_VERSION = 1
+MUTATION_OUTCOMES = ["created", "updated", "existing", "imported", "replaced", "unchanged", "dry_run"]
 REVIEW_RUN_STATUSES = [
     "created",
     "diff_ready",
@@ -238,6 +239,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             "Record local feedback about CLI or review workflow friction.",
             ["--json", "--no-input"],
             mutation=True,
+            allowed_mutation_outcomes=["created"],
             examples=['repo-review feedback "message" --json --no-input'],
         )
     },
@@ -247,6 +249,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             ["--json", "--no-input", "--pass", "--review-state", "--diff-report", "--impact-plan", "--output", "--deliver", "--overwrite", "--dry-run"],
             mutation=True,
             dry_run=True,
+            allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
             examples=["repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input"],
         )
     },
@@ -277,6 +280,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             "Validate and record an external analyzer artifact.",
             ["--json", "--no-input", "--input", "--kind"],
             mutation=True,
+            allowed_mutation_outcomes=["created"],
             examples=["repo-review ingest --input <path> --kind delta-review --json --no-input"],
         )
     },
@@ -299,6 +303,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             ["--json", "--no-input", "--review-state", "--impact-plan", "--input", "--force", "--overwrite-claims", "--claim-status", "--kind", "--subject", "--limit"],
             subcommands=["list", "get", "affected", "import"],
             mutation=True,
+            allowed_mutation_outcomes=["created", "updated", "existing", "imported", "replaced", "unchanged", "dry_run"],
             examples=["repo-review claims list --review-state <path> --json --no-input"],
         )
     },
@@ -316,6 +321,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             ["--json", "--no-input", "--force"],
             subcommands=["list", "show", "save", "delete"],
             mutation=True,
+            allowed_mutation_outcomes=["created", "updated", "existing", "unchanged"],
         )
     },
     "state": {
@@ -342,6 +348,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             output_schema="schemas/review_state.schema.json",
             mutation=True,
             dry_run=True,
+            allowed_mutation_outcomes=["created", "existing", "replaced", "dry_run"],
             examples=["repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input"],
         )
     },
@@ -368,6 +375,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             implemented=False,
+            allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
             idempotency={"natural_key_by_mode": {"delta": ["repo", "range", "review_state"], "full": ["repo", "commit"], "bootstrap": ["repo", "review_dir"]}},
             examples=["repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input"],
         )
@@ -401,6 +409,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             implemented=False,
+            allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
         )
     },
     "review ingest": {
@@ -412,6 +421,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             implemented=False,
+            allowed_mutation_outcomes=["created", "updated", "existing", "imported", "unchanged", "dry_run"],
         )
     },
     "review finish": {
@@ -423,6 +433,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             implemented=False,
+            allowed_mutation_outcomes=["updated", "unchanged", "dry_run"],
         )
     },
     "state latest": {
@@ -484,6 +495,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             implemented=False,
+            allowed_mutation_outcomes=["updated", "unchanged", "dry_run"],
         )
     },
 }
@@ -700,6 +712,7 @@ def agent_context() -> dict[str, Any]:
             "statuses": REVIEW_RUN_STATUS_CONTRACTS,
             "transitions": REVIEW_RUN_TRANSITIONS,
         },
+        "mutation_outcomes": MUTATION_OUTCOMES,
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
     }
