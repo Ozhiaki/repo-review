@@ -144,6 +144,34 @@ pass_output:
             "updated_at": "2026-05-27T00:00:00Z",
         }
 
+    def review_state_record(self, repo_root: Path, state_id: str, created_at: str = "2026-05-27T00:00:00Z") -> dict:
+        analyzer = {"id": "fixture", "kind": "tool", "model": None, "tool_context": "test"}
+        claim = {**self.candidate_claim("central"), "produced_by_analyzer": analyzer}
+        return {
+            "schema_version": 1,
+            "id": state_id,
+            "repo": {
+                "name": repo_root.name,
+                "root": str(repo_root),
+                "remote": None,
+                "commit": "abc123",
+            },
+            "mode": "full",
+            "created_at": created_at,
+            "produced_by_analyzer": analyzer,
+            "pass_outputs": [
+                {
+                    "pass_id": "first-read",
+                    "path": "01-first-read.md",
+                    "output_kind": "prose",
+                    "produced_by_analyzer": analyzer,
+                }
+            ],
+            "claims": [claim],
+            "drift_surface": [],
+            "limits": [],
+        }
+
     def test_json_commands_emit_parseable_stdout_only(self) -> None:
         for args in [
             ("agent-context", "--json"),
@@ -538,6 +566,46 @@ pass_output:
             self.assertEqual(pruned["mutation_outcome"], "updated")
             self.assertEqual(pruned["pruned_count"], 1)
             self.assertEqual(len(ledger.read_text(encoding="utf-8").splitlines()), 2)
+
+    def test_state_discovery_commands_list_latest_get_and_validate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            first_path = repo_root / "reviews" / "repo" / "first" / "review-state.json"
+            latest_path = repo_root / "reviews" / "repo" / "latest" / "review-state.json"
+            first_path.parent.mkdir(parents=True)
+            latest_path.parent.mkdir(parents=True)
+            first = self.review_state_record(repo_root, "state-first", "2026-05-26T00:00:00Z")
+            latest = self.review_state_record(repo_root, "state-latest", "2026-05-27T00:00:00Z")
+            first_path.write_text(json.dumps(first, sort_keys=True), encoding="utf-8")
+            latest_path.write_text(json.dumps(latest, sort_keys=True), encoding="utf-8")
+
+            listed = self.assert_json_stdout(self.run_cli("state", "list", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual([state["id"] for state in listed["states"]], ["state-latest", "state-first"])
+            self.assertTrue(all(state["valid"] for state in listed["states"]))
+            self.assert_human_stdout(self.run_cli("state", "list", "--repo", str(repo_root), "--no-input"), "Review states")
+
+            resolved = self.assert_json_stdout(self.run_cli("state", "latest", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual(resolved["state"]["id"], "state-latest")
+            self.assertEqual(resolved["state"]["path"], str(latest_path))
+
+            by_id = self.assert_json_stdout(
+                self.run_cli("state", "get", "--repo", str(repo_root), "--review-state", "state-first", "--json", "--no-input")
+            )
+            self.assertEqual(by_id["review_state"]["id"], "state-first")
+
+            validated = self.assert_json_stdout(
+                self.run_cli("state", "validate", "--repo", str(repo_root), "--review-state", str(latest_path), "--json", "--no-input")
+            )
+            self.assertTrue(validated["valid"])
+            self.assertEqual(validated["errors"], [])
+
+            ambiguous_path = repo_root / "reviews" / "repo" / "ambiguous" / "review-state.json"
+            ambiguous_path.parent.mkdir(parents=True)
+            ambiguous = self.review_state_record(repo_root, "state-ambiguous", "2026-05-27T00:00:00Z")
+            ambiguous_path.write_text(json.dumps(ambiguous, sort_keys=True), encoding="utf-8")
+            diagnostic = self.assert_json_stderr(self.run_cli("state", "latest", "--repo", str(repo_root), "--json", "--no-input"))
+            self.assertEqual(diagnostic["code"], "invalid_invocation")
+            self.assertIn("ambiguous", diagnostic["message"])
 
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
