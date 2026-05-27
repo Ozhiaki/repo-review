@@ -241,10 +241,12 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
     },
     "feedback": {
         **command_schema(
-            "Record local feedback about CLI or review workflow friction.",
-            ["--json", "--no-input"],
+            "Record, list, inspect, and export local feedback about CLI or review workflow friction.",
+            ["--json", "--no-input", "--output", "--overwrite", "--limit"],
+            subcommands=["list", "get", "export", "send"],
             mutation=True,
-            allowed_mutation_outcomes=["created"],
+            deferred={"send": "Sending feedback outside local storage is deferred in v1."},
+            allowed_mutation_outcomes=["created", "unchanged"],
             examples=['repo-review feedback "message" --json --no-input'],
         )
     },
@@ -886,6 +888,7 @@ def fail(
     path: str | None = None,
     expected_artifact_kind: str | None = None,
     examples: list[str] | None = None,
+    feedback_hint: str | None = None,
 ) -> int:
     diagnostic: dict[str, Any] = {
         "code": error_code,
@@ -900,6 +903,8 @@ def fail(
         diagnostic["expected_artifact_kind"] = expected_artifact_kind
     if examples:
         diagnostic["examples"] = examples
+    if feedback_hint is not None:
+        diagnostic["feedback_hint"] = feedback_hint
     if DIAGNOSTIC_JSON_MODE:
         print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
     else:
@@ -912,6 +917,8 @@ def fail(
             lines.append(f"Path: {path}")
         if examples:
             lines.extend(["Examples:", *(f"  {example}" for example in examples)])
+        if feedback_hint is not None:
+            lines.append(f"Feedback: {feedback_hint}")
         print("\n".join(lines), file=sys.stderr)
     return code
 
@@ -3683,12 +3690,81 @@ def profile_command(positionals: list[str], options: dict[str, Any]) -> tuple[in
     return fail(f"unknown profile subcommand '{subcommand}'", "Use one of: list, show, save, delete.", valid_values=values), None
 
 
-def feedback(positionals: list[str]) -> dict[str, Any] | tuple[int, None]:
+def load_feedback_entries() -> list[dict[str, Any]]:
+    if not FEEDBACK_PATH.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    with FEEDBACK_PATH.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                entries.append(json.loads(line))
+    return entries
+
+
+def feedback(positionals: list[str], options: dict[str, Any]) -> dict[str, Any] | tuple[int, None]:
     if not positionals:
-        return fail("missing feedback message", "Run: repo-review feedback \"message\" --json --no-input"), None
+        return fail(
+            "missing feedback message or subcommand",
+            "Run: repo-review feedback \"message\" --json --no-input, or use list/get/export.",
+            valid_values=["list", "get", "export"],
+            feedback_hint="Use feedback list to inspect local feedback before exporting it.",
+        ), None
+    subcommand = positionals[0]
+    if subcommand == "list":
+        try:
+            limit = int(options.get("limit") or 20)
+        except (TypeError, ValueError):
+            return fail("invalid --limit", "Use a positive integer for --limit.", valid_values=["1", "20", "50"]), None
+        entries = load_feedback_entries()
+        shown = entries[-limit:]
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "feedback": shown,
+            "truncation": {"limit": limit, "shown": len(shown), "total": len(entries), "truncated": len(entries) > len(shown)},
+            "path": str(FEEDBACK_PATH),
+        }
+    if subcommand == "get":
+        if len(positionals) < 2:
+            return fail("missing feedback id", "Run: repo-review feedback get <entry-id> --json --no-input", feedback_hint="Use feedback list to find entry IDs."), None
+        entry_id = positionals[1]
+        for entry in load_feedback_entries():
+            if entry.get("entry_id") == entry_id:
+                return {"schema_version": SCHEMA_VERSION, "entry": entry, "path": str(FEEDBACK_PATH)}
+        return fail(
+            "feedback entry was not found",
+            f"No feedback entry '{entry_id}' exists in {FEEDBACK_PATH}.",
+            code=4,
+            error_code="resource_not_found",
+            feedback_hint="Use feedback list to find entry IDs.",
+        ), None
+    if subcommand == "export":
+        output = options.get("output")
+        if not output:
+            return fail("missing required --output", "Run: repo-review feedback export --output <path> --json --no-input", valid_values=["--output"]), None
+        output_path = Path(output).expanduser().resolve()
+        if output_path.exists() and not options.get("overwrite"):
+            return fail(
+                "output path already exists",
+                "Add --overwrite to replace the exported feedback file.",
+                code=5,
+                error_code="unsafe_mutation_refused",
+                valid_values=["--overwrite"],
+            ), None
+        entries = load_feedback_entries()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps({"schema_version": SCHEMA_VERSION, "feedback": entries}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {"schema_version": SCHEMA_VERSION, "path": str(output_path), "feedback_count": len(entries), "mutation_outcome": "created" if len(entries) else "unchanged"}
+    if subcommand == "send":
+        return fail(
+            "feedback send is deferred in v1",
+            "Use feedback export --output <path> and send the file through the project-approved channel.",
+            code=2,
+            valid_values=["list", "get", "export"],
+            feedback_hint="Local feedback remains in .repo-review/feedback.jsonl.",
+        ), None
     STATE_DIR.mkdir(exist_ok=True)
-    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    entry_id = "feedback-" + created_at.replace(":", "").replace("+", "Z")
+    created_at = datetime.now(timezone.utc).isoformat()
+    entry_id = "feedback-" + created_at.replace(":", "").replace(".", "").replace("+", "Z")
     entry = {
         "schema_version": SCHEMA_VERSION,
         "entry_id": entry_id,
@@ -3754,7 +3830,7 @@ def main(argv: list[str]) -> int:
             return code
         return emit_json(payload or {})
     if command == "feedback":
-        result = feedback(positionals)
+        result = feedback(positionals, options)
         if isinstance(result, tuple):
             code, _ = result
             return code

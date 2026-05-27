@@ -316,6 +316,36 @@ pass_output:
         self.assertIn("entry_id", payload)
         self.assertTrue(Path(payload["path"]).is_file())
 
+    def test_feedback_commands_list_get_export_and_deferred_send(self) -> None:
+        message = "feedback command test"
+        created = self.assert_json_stdout(self.run_cli("feedback", message, "--json", "--no-input"))
+        entry_id = created["entry_id"]
+
+        listed = self.assert_json_stdout(self.run_cli("feedback", "list", "--limit", "5", "--json", "--no-input"))
+        self.assertTrue(any(entry.get("entry_id") == entry_id for entry in listed["feedback"]))
+        self.assertIn("truncation", listed)
+
+        fetched = self.assert_json_stdout(self.run_cli("feedback", "get", entry_id, "--json", "--no-input"))
+        self.assertEqual(fetched["entry"]["message"], message)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp).resolve() / "feedback.json"
+            exported = self.assert_json_stdout(self.run_cli("feedback", "export", "--output", str(output), "--json", "--no-input"))
+            self.assertEqual(exported["path"], str(output))
+            self.assertTrue(output.is_file())
+            self.assertIn(entry_id, output.read_text(encoding="utf-8"))
+            refused = self.assert_json_stderr(self.run_cli("feedback", "export", "--output", str(output), "--json", "--no-input"))
+            self.assertEqual(refused["code"], "unsafe_mutation_refused")
+            self.assertIn("--overwrite", refused["valid_values"])
+
+        missing = self.assert_json_stderr(self.run_cli("feedback", "get", "missing-feedback-id", "--json", "--no-input"))
+        self.assertEqual(missing["code"], "resource_not_found")
+        self.assertIn("feedback_hint", missing)
+
+        send = self.assert_json_stderr(self.run_cli("feedback", "send", "--json", "--no-input"))
+        self.assertIn("deferred", send["message"])
+        self.assertIn("feedback_hint", send)
+
     def test_actionable_error_shape_with_valid_values(self) -> None:
         diagnostic = self.assert_json_stderr(self.run_cli("unknown-command", "--json"))
         self.assertIn("code", diagnostic)
