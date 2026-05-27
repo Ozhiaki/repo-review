@@ -42,6 +42,14 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         return json.loads(result.stderr)
 
+    def assert_human_stderr(self, result: subprocess.CompletedProcess[str], expected_text: str) -> str:
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(expected_text, result.stderr)
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(result.stderr)
+        return result.stderr
+
     def assert_human_stdout(self, result: subprocess.CompletedProcess[str], expected_text: str) -> str:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
@@ -160,7 +168,6 @@ pass_output:
 
     def test_json_failure_contract_keeps_stdout_empty(self) -> None:
         cases = [
-            (("skill-path",), "invalid_invocation", "skill-path requires --json"),
             (("unknown-command", "--json"), "invalid_invocation", "unknown command"),
             (("impact", "--json", "--no-input"), "invalid_invocation", "missing required --review-state"),
             (
@@ -260,6 +267,57 @@ pass_output:
         self.assertIn("hint", diagnostic)
         self.assertIn("valid_values", diagnostic)
         self.assertIn("agent-context", diagnostic["valid_values"])
+
+    def test_actionable_diagnostics_cover_enum_paths_and_human_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            wrong_artifact = tmp_path / "diff-report.json"
+            wrong_artifact.write_text(
+                json.dumps({"schema_version": 1, "range": {}, "changed_files": []}),
+                encoding="utf-8",
+            )
+            missing_state = tmp_path / "missing-review-state.json"
+
+            enum_diagnostic = self.assert_json_stderr(
+                self.run_cli("export-prompt", "--pass", "wrong", "--output", str(tmp_path / "prompt.md"), "--json", "--no-input")
+            )
+            self.assertEqual(enum_diagnostic["code"], "invalid_invocation")
+            self.assertIn("delta-trace", enum_diagnostic["valid_values"])
+
+            missing_path = self.assert_json_stderr(
+                self.run_cli(
+                    "impact",
+                    "--review-state",
+                    str(missing_state),
+                    "--diff-report",
+                    "reviews/oathweaver/delta-2026-05-25/diff-report.json",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(missing_path["code"], "resource_not_found")
+            self.assertEqual(missing_path["path"], str(missing_state))
+            self.assertEqual(missing_path["expected_artifact_kind"], "review-state")
+
+            wrong_kind = self.assert_json_stderr(
+                self.run_cli(
+                    "impact",
+                    "--review-state",
+                    str(wrong_artifact),
+                    "--diff-report",
+                    "reviews/oathweaver/delta-2026-05-25/diff-report.json",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(wrong_kind["code"], "validation_failed")
+            self.assertIn("wrong artifact kind", wrong_kind["message"])
+            self.assertEqual(wrong_kind["expected_artifact_kind"], "review-state")
+
+        human_diagnostic = self.assert_human_stderr(self.run_cli("impact", "--no-input"), "Error:")
+        self.assertIn("Hint:", human_diagnostic)
+        self.assertIn("--review-state", human_diagnostic)
+        self.assert_human_stderr(self.run_cli("skill-path"), "skill-path requires --json")
 
     def test_vocabulary_policy_has_required_and_banned_terms(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))

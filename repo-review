@@ -725,12 +725,18 @@ def emit_result(command: str, positionals: list[str], payload: dict[str, Any], j
     return fail(f"{command} requires --json in the current CLI slice", f"Run: repo-review {command} --json")
 
 
+DIAGNOSTIC_JSON_MODE = True
+
+
 def fail(
     message: str,
     hint: str,
     code: int = 2,
     error_code: str = "invalid_invocation",
     valid_values: list[str] | None = None,
+    path: str | None = None,
+    expected_artifact_kind: str | None = None,
+    examples: list[str] | None = None,
 ) -> int:
     diagnostic: dict[str, Any] = {
         "code": error_code,
@@ -739,7 +745,25 @@ def fail(
     }
     if valid_values is not None:
         diagnostic["valid_values"] = valid_values
-    print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
+    if path is not None:
+        diagnostic["path"] = path
+    if expected_artifact_kind is not None:
+        diagnostic["expected_artifact_kind"] = expected_artifact_kind
+    if examples:
+        diagnostic["examples"] = examples
+    if DIAGNOSTIC_JSON_MODE:
+        print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
+    else:
+        lines = [f"Error: {message}", f"Hint: {hint}"]
+        if valid_values is not None:
+            lines.append(f"Valid values: {', '.join(valid_values) or '(none)'}")
+        if expected_artifact_kind is not None:
+            lines.append(f"Expected artifact: {expected_artifact_kind}")
+        if path is not None:
+            lines.append(f"Path: {path}")
+        if examples:
+            lines.extend(["Examples:", *(f"  {example}" for example in examples)])
+        print("\n".join(lines), file=sys.stderr)
     return code
 
 
@@ -1030,12 +1054,25 @@ def diff_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     }
 
 
+ARTIFACT_KIND_REQUIREMENTS = {
+    "review-state": ["id", "claims"],
+    "diff-report": ["range", "changed_files"],
+    "impact-plan": ["from_review", "impacted_claims"],
+}
+
+
+def artifact_kind_for_label(label: str) -> str:
+    return label.split(" ", 1)[0]
+
+
 def load_json_file(path_value: str | None, label: str) -> tuple[dict[str, Any] | None, int]:
+    artifact_kind = artifact_kind_for_label(label)
     if not path_value:
         return None, fail(
             f"missing required --{label}",
             f"Run with --{label} <path>.",
             valid_values=[f"--{label}"],
+            expected_artifact_kind=artifact_kind,
         )
     path = Path(path_value)
     if not path.is_file():
@@ -1044,17 +1081,44 @@ def load_json_file(path_value: str | None, label: str) -> tuple[dict[str, Any] |
             f"Expected a readable JSON file at {path}.",
             code=4,
             error_code="resource_not_found",
+            path=str(path),
+            expected_artifact_kind=artifact_kind,
         )
     try:
         with path.open(encoding="utf-8") as handle:
-            return json.load(handle), 0
+            payload = json.load(handle)
     except json.JSONDecodeError as exc:
         return None, fail(
             f"{label} is not valid JSON",
             f"{exc.msg} at line {exc.lineno}, column {exc.colno}.",
             code=3,
             error_code="validation_failed",
+            path=str(path),
+            expected_artifact_kind=artifact_kind,
         )
+    if not isinstance(payload, dict):
+        return None, fail(
+            f"{label} file has wrong artifact kind",
+            f"Expected {artifact_kind} JSON object.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=[artifact_kind],
+            path=str(path),
+            expected_artifact_kind=artifact_kind,
+        )
+    required_keys = ARTIFACT_KIND_REQUIREMENTS.get(artifact_kind, [])
+    missing = [key for key in required_keys if key not in payload]
+    if missing:
+        return None, fail(
+            f"{label} file has wrong artifact kind",
+            f"Expected {artifact_kind} JSON with fields: {', '.join(required_keys)}.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=[artifact_kind],
+            path=str(path),
+            expected_artifact_kind=artifact_kind,
+        )
+    return payload, 0
 
 
 def parse_scalar(value: str) -> Any:
@@ -2570,6 +2634,9 @@ def feedback(positionals: list[str]) -> dict[str, Any] | tuple[int, None]:
 
 
 def main(argv: list[str]) -> int:
+    global DIAGNOSTIC_JSON_MODE
+    DIAGNOSTIC_JSON_MODE = "--json" in argv
+
     if not argv or argv[0] in {"-h", "--help"}:
         commands = ", ".join(sorted(COMMANDS))
         return fail(
