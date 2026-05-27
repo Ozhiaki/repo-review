@@ -162,11 +162,20 @@ Discovery and setup:
 ./repo-review status --json
 ./repo-review profile list --json --no-input
 ./repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input
+./repo-review state list --repo <path> --json --no-input
+./repo-review state latest --repo <path> --json --no-input
+./repo-review state get --review-state <id-or-path> --json --no-input
+./repo-review state validate --review-state <path> --json --no-input
 ```
 
 Delta review:
 
 ```bash
+./repo-review review start --mode delta --repo <path> --range <from>..<to> --review-state <id-or-path> --json --no-input
+./repo-review review package --run <id> --json --no-input
+./repo-review review continue --run <id> --json --no-input
+./repo-review review ingest --run <id> --input <review.md> --json --no-input
+./repo-review review finish --run <id> --json --no-input
 ./repo-review diff --range <from>..<to> --json --no-input
 ./repo-review impact --review-state <path> --diff-report <path> --json --no-input
 ./repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input
@@ -182,11 +191,14 @@ Claims, drift, and aggregation:
 ./repo-review claims import --review-state <path> --input <candidate-claims.json> --json --no-input
 ./repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input
 ./repo-review aggregate --review-state <path> --review-state <path> --json --no-input
+./repo-review runs list --repo <path> --json --no-input
+./repo-review runs get <id> --repo <path> --json --no-input
+./repo-review runs prune --repo <path> --dry-run --json --no-input
 ```
 
-All shipped commands require `--json`. Mutating commands should use
-`--no-input` in automated contexts. Stdout is result data; stderr is reserved
-for JSON diagnostics.
+Use `--json` for stable machine output. Mutating commands should use
+`--no-input` in automated contexts. In JSON mode, stdout is result data and
+stderr is reserved for JSON diagnostics.
 
 ## Common Tasks
 
@@ -244,9 +256,10 @@ matching durable claims intentionally.
 - First-read output appendix validation.
 - Initial schemas for pass output, claims, review state, diff reports, impact
   plans, and delta drift.
-- CLI commands for discovery, profiles, status, feedback, diffing, impact
-  planning, prompt export, ingestion, claims, state bootstrap, drift,
-  aggregation, and next-step guidance.
+- CLI commands for discovery, profiles, workflow-aware status, feedback,
+  diffing, impact planning, prompt export, ingestion, claims, state bootstrap
+  and discovery, run ledgers, delta review start/package/continue/ingest/finish,
+  drift, aggregation, and next-step guidance.
 - Calibration artifacts for repo-review itself.
 - A worked Oathweaver delta slice.
 - Helper templates for affected claims, invalidation triggers, drift summaries,

@@ -396,6 +396,25 @@ pass_output:
         self.assertTrue(payload["webhook_delivery"]["deferred"])
         self.assertFalse(payload["webhook_delivery"]["supported"])
 
+    def test_readme_and_manifest_cover_workflow_command_snippets(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manifest = (ROOT / "agent" / "repo-review-task-manifest.md").read_text(encoding="utf-8")
+        snippets = [
+            "repo-review state list",
+            "repo-review state latest",
+            "repo-review runs list",
+            "repo-review runs prune",
+            "repo-review review start",
+            "repo-review review package",
+            "repo-review review continue",
+            "repo-review review ingest",
+            "repo-review review finish",
+        ]
+        for snippet in snippets:
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, readme)
+                self.assertIn(snippet, manifest)
+
     def test_agent_context_exposes_richer_command_schema(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
         schema = {command["name"]: command for command in payload["command_schema"]}
@@ -433,6 +452,13 @@ pass_output:
         shipped_command_names = {command["name"] for command in payload["commands"]}
         self.assertIn("review", shipped_command_names)
         self.assertIn("runs", shipped_command_names)
+
+        cli = self.load_cli_module()
+        for name in cli.COMMANDS:
+            with self.subTest(command=name):
+                self.assertIn(name, schema)
+                self.assertTrue(schema[name]["implemented"])
+                self.assertIn("flags", schema[name])
 
     def test_review_run_schema_and_migration_helpers(self) -> None:
         self.assertTrue((ROOT / "schemas/review_run.schema.json").is_file())

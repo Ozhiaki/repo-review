@@ -14,7 +14,10 @@ Returns the local directory containing this manifest.
 
 ### `repo-review status --json`
 
-Returns configured paths, available profiles, and the next relevant review action. Configuration precedence is explicit flag, then environment variable, then selected profile, then default.
+Returns workflow state first: latest review state, open runs, prompt-ready runs,
+candidate claims waiting to import, warnings, and next action. It also preserves
+configured paths and available profiles. Configuration precedence is explicit
+flag, then environment variable, then selected profile, then default.
 
 ### `repo-review profile list|show|save|delete --json`
 
@@ -69,6 +72,53 @@ state. Use `--dry-run` to preview discovery and warnings without writing, and
 
 Bootstrap is mechanical migration only. It must not promote inferred prose
 claims into durable state.
+
+### `repo-review state list --json --no-input`
+### `repo-review state latest --json --no-input`
+### `repo-review state get --json --no-input`
+### `repo-review state validate --json --no-input`
+
+Discovers review-state artifacts for a repo, resolves the latest state, returns
+one state by ID or path, and reports schema validity plus readiness warnings.
+`state latest` refuses ambiguous latest candidates and asks callers to resolve
+with `state list` and `state get`.
+
+### `repo-review runs list --json --no-input`
+### `repo-review runs get --json --no-input`
+### `repo-review runs prune --json --no-input`
+
+Lists and inspects persisted review runs in `.repo-review/runs.jsonl`.
+`runs prune --dry-run` reports completed-run ledger compaction candidates;
+non-dry-run pruning requires `--force` and keeps the latest record for every run.
+
+### `repo-review review start --mode delta --repo <path> --range <from>..<to> --review-state <id-or-path> --json --no-input`
+
+Starts or reuses a delta review run, writes diff, impact, and prompt artifacts,
+and records a `prompt_ready` run. Duplicate detection uses repo, range, and prior
+review state. `--new-run` creates an explicit separate run and `--dry-run`
+reports reads, writes, blockers, warnings, and next action without writing.
+
+### `repo-review review package --run <id> --json --no-input`
+
+Packages an `impact_ready` run into a prompt packet and moves it to
+`prompt_ready`. `--dry-run` reports intended writes without changing the ledger.
+
+### `repo-review review continue --run <id>|--latest --json --no-input`
+
+Reports the next action for a run without mutating it. `--apply` performs only
+safe deterministic transitions, currently packaging `impact_ready` runs.
+
+### `repo-review review ingest --run <id> --input <review.md> --json --no-input`
+
+Attaches reviewer output with `--attach-only` and moves the run to
+`review_received`, or validates a delta-review artifact and moves the run to
+`ingested`. Ingest output reports candidate-claim and drift counts, warnings,
+and next action. `--dry-run` reports intended changes without writing.
+
+### `repo-review review finish --run <id> --json --no-input`
+
+Refuses unresolved runs and completes finishable `ingested` or `drift_ready`
+runs. `--dry-run` reports whether the run is finishable.
 
 ## Async Strategy
 
