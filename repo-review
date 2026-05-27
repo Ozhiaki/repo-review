@@ -571,6 +571,160 @@ def emit_json(payload: dict[str, Any]) -> int:
     return 0
 
 
+def human_output_supported(command: str, positionals: list[str]) -> bool:
+    if command in {"status", "diff", "impact", "export-prompt", "aggregate"}:
+        return True
+    if command == "state" and positionals[:1] == ["bootstrap"]:
+        return True
+    if command == "claims" and positionals[:1] == ["list"]:
+        return True
+    return False
+
+
+def emit_human(lines: list[str]) -> int:
+    print("\n".join(lines))
+    return 0
+
+
+def human_status(payload: dict[str, Any]) -> list[str]:
+    configured = payload.get("configured_paths", {})
+    lines = [
+        "Repo-review status",
+        "",
+        f"Repo: {configured.get('repo_root')}",
+        f"Output dir: {configured.get('review_output_dir')}",
+        f"Profile: {payload.get('profile') or '(none)'}",
+    ]
+    next_actions = payload.get("next_actions", [])
+    if next_actions:
+        lines.extend(["", "Next:"])
+        for action in next_actions[:3]:
+            lines.append(f"  {action.get('recommended_command') or action.get('action')}")
+            if action.get("reason"):
+                lines.append(f"  Reason: {action['reason']}")
+    return lines
+
+
+def human_diff(payload: dict[str, Any]) -> list[str]:
+    stats = payload.get("summary_stats", {})
+    truncation = payload.get("truncation", {})
+    repo = payload.get("repo", {})
+    diff_range = payload.get("range", {})
+    lines = [
+        "Diff report",
+        "",
+        f"Repo: {repo.get('root')}",
+        f"Range: {diff_range.get('expression')}",
+        f"Files changed: {stats.get('files_changed', 0)}",
+        f"Additions: {stats.get('additions', 0)}",
+        f"Deletions: {stats.get('deletions', 0)}",
+        f"Shown: {truncation.get('shown', 0)} of {truncation.get('total', 0)}",
+    ]
+    if truncation.get("truncated"):
+        lines.append("Warning: output was truncated; rerun with --limit or --path to narrow.")
+    lines.extend(["", "Next:", "  repo-review impact --review-state <path> --diff-report <diff-report.json> --json --no-input"])
+    return lines
+
+
+def human_impact(payload: dict[str, Any]) -> list[str]:
+    return [
+        "Impact plan",
+        "",
+        f"From review: {payload.get('from_review')}",
+        f"Impacted claims: {len(payload.get('impacted_claims', []))}",
+        f"Unaffected claims: {len(payload.get('unaffected_claims', []))}",
+        f"Unknown changed files: {len(payload.get('unknowns', []))}",
+        "",
+        "Next:",
+        "  repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input",
+    ]
+
+
+def human_export_prompt(payload: dict[str, Any]) -> list[str]:
+    dry_run = payload.get("dry_run", False)
+    lines = [
+        "Prompt packet dry run" if dry_run else "Prompt packet ready",
+        "",
+        f"Output: {payload.get('output') or '(stdout)'}",
+        f"Delivery: {payload.get('delivery')}",
+    ]
+    if payload.get("would_write"):
+        lines.append(f"Would write: {payload['would_write']}")
+    lines.extend(["", "Next:", "  Send the prompt packet to a reviewer/model."])
+    return lines
+
+
+def human_state_bootstrap(payload: dict[str, Any]) -> list[str]:
+    lines = [
+        "State bootstrap dry run" if payload.get("dry_run") else "State bootstrap complete",
+        "",
+        f"Review state: {payload.get('review_state_id')}",
+        f"Output: {payload.get('output')}",
+        f"Provenance: {payload.get('provenance')}",
+        f"Pass outputs: {payload.get('pass_outputs', 0)}",
+        f"Claims: {payload.get('claims', 0)}",
+    ]
+    warnings = payload.get("warnings", [])
+    if warnings:
+        lines.extend(["", "Warnings:"])
+        lines.extend(f"  {warning}" for warning in warnings[:5])
+        if len(warnings) > 5:
+            lines.append(f"  ... {len(warnings) - 5} more")
+    next_commands = payload.get("next_commands", [])
+    if next_commands:
+        lines.extend(["", "Next:", f"  {next_commands[0]}"])
+    return lines
+
+
+def human_claims_list(payload: dict[str, Any]) -> list[str]:
+    truncation = payload.get("truncation", {})
+    lines = [
+        "Claims",
+        "",
+        f"Review state: {payload.get('review_state')}",
+        f"Shown: {truncation.get('shown', len(payload.get('claims', [])))} of {truncation.get('total', len(payload.get('claims', [])))}",
+    ]
+    for claim in payload.get("claims", [])[:5]:
+        lines.append(f"  {claim.get('qualified_claim_id')}: {claim.get('claim_status')} {claim.get('kind')}")
+    if truncation.get("truncated"):
+        lines.append("Warning: output was truncated; rerun with a higher --limit.")
+    return lines
+
+
+def human_aggregate(payload: dict[str, Any]) -> list[str]:
+    totals = payload.get("totals", {})
+    return [
+        "Aggregate",
+        "",
+        f"Review states: {payload.get('review_state_count', 0)}",
+        f"Claims: {totals.get('claim_count', 0)}",
+        f"Analyzers: {totals.get('analyzer_count', 0)}",
+        f"Drift outputs: {totals.get('drift_output_count', 0)}",
+        "",
+        "Note: global claim identity is not supported; claim IDs remain review-state scoped.",
+    ]
+
+
+def emit_result(command: str, positionals: list[str], payload: dict[str, Any], json_mode: bool) -> int:
+    if json_mode:
+        return emit_json(payload)
+    if command == "status":
+        return emit_human(human_status(payload))
+    if command == "diff":
+        return emit_human(human_diff(payload))
+    if command == "impact":
+        return emit_human(human_impact(payload))
+    if command == "export-prompt":
+        return emit_human(human_export_prompt(payload))
+    if command == "state" and positionals[:1] == ["bootstrap"]:
+        return emit_human(human_state_bootstrap(payload))
+    if command == "claims" and positionals[:1] == ["list"]:
+        return emit_human(human_claims_list(payload))
+    if command == "aggregate":
+        return emit_human(human_aggregate(payload))
+    return fail(f"{command} requires --json in the current CLI slice", f"Run: repo-review {command} --json")
+
+
 def fail(
     message: str,
     hint: str,
@@ -2429,13 +2583,14 @@ def main(argv: list[str]) -> int:
         commands = ", ".join(sorted(COMMANDS))
         return fail(f"unknown command '{command}'", f"Use one of: {commands}.", valid_values=sorted(COMMANDS))
 
-    if not require_json(args):
+    positionals, options = parse_args(args)
+    json_mode = bool(options.get("json"))
+
+    if not json_mode and not human_output_supported(command, positionals):
         return fail(
             f"{command} requires --json in the current CLI slice",
             f"Run: repo-review {command} --json",
         )
-
-    positionals, options = parse_args(args)
 
     if command == "agent-context":
         return emit_json(agent_context())
@@ -2443,7 +2598,7 @@ def main(argv: list[str]) -> int:
         code, payload = diff_command(options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "delta":
         code, payload = delta_command(options)
         if code != 0:
@@ -2453,12 +2608,12 @@ def main(argv: list[str]) -> int:
         code, payload = aggregate_command(options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "claims":
         code, payload = claims_command(positionals, options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "drift":
         code, payload = drift_command(positionals, options)
         if code != 0:
@@ -2474,12 +2629,12 @@ def main(argv: list[str]) -> int:
         code, payload = export_prompt_command(options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "impact":
         code, payload = impact_command(options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "ingest":
         code, payload = ingest_command(options)
         if code != 0:
@@ -2496,7 +2651,7 @@ def main(argv: list[str]) -> int:
         code, payload = state_command(positionals, options)
         if code != 0:
             return code
-        return emit_json(payload or {})
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "skill-path":
         if not MANIFEST_DIR.is_dir() or not MANIFEST_PATH.is_file():
             return fail(
@@ -2507,7 +2662,7 @@ def main(argv: list[str]) -> int:
             )
         return emit_json(skill_path())
     if command == "status":
-        return emit_json(status(options))
+        return emit_result(command, positionals, status(options), json_mode)
 
     return fail(f"command '{command}' is registered but not implemented", "Check agent-context for shipped commands.", code=1)
 

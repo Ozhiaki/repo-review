@@ -42,6 +42,14 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         return json.loads(result.stderr)
 
+    def assert_human_stdout(self, result: subprocess.CompletedProcess[str], expected_text: str) -> str:
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertIn(expected_text, result.stdout)
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(result.stdout)
+        return result.stdout
+
     def assert_has_keys(self, payload: dict, keys: set[str]) -> None:
         self.assertTrue(keys <= payload.keys(), f"missing keys: {sorted(keys - payload.keys())}")
 
@@ -152,7 +160,7 @@ pass_output:
 
     def test_json_failure_contract_keeps_stdout_empty(self) -> None:
         cases = [
-            (("status",), "invalid_invocation", "status requires --json"),
+            (("skill-path",), "invalid_invocation", "skill-path requires --json"),
             (("unknown-command", "--json"), "invalid_invocation", "unknown command"),
             (("impact", "--json", "--no-input"), "invalid_invocation", "missing required --review-state"),
             (
@@ -167,6 +175,77 @@ pass_output:
                 self.assertEqual(diagnostic["code"], expected_code)
                 self.assertIn(expected_message, diagnostic["message"])
                 self.assertIn("hint", diagnostic)
+
+    def test_targeted_commands_emit_human_output_without_json(self) -> None:
+        self.assert_human_stdout(self.run_cli("status"), "Repo-review status")
+        self.assert_human_stdout(
+            self.run_cli("diff", "--repo", str(ROOT), "--range", "HEAD~1..HEAD", "--limit", "1", "--no-input"),
+            "Diff report",
+        )
+        self.assert_human_stdout(
+            self.run_cli(
+                "impact",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--diff-report",
+                "reviews/oathweaver/delta-2026-05-25/diff-report.json",
+                "--no-input",
+            ),
+            "Impact plan",
+        )
+        self.assert_human_stdout(
+            self.run_cli(
+                "claims",
+                "list",
+                "--review-state",
+                "reviews/oathweaver/delta-2026-05-25/prior-review-state.json",
+                "--limit",
+                "1",
+                "--no-input",
+            ),
+            "Claims",
+        )
+        self.assert_human_stdout(
+            self.run_cli(
+                "aggregate",
+                "--review-state",
+                "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                "--no-input",
+            ),
+            "Aggregate",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            output_path = tmp_path / "review-state.json"
+            self.write_legacy_reviews(review_dir)
+            self.assert_human_stdout(
+                self.run_cli(
+                    "state",
+                    "bootstrap",
+                    "--repo",
+                    str(ROOT),
+                    "--review-dir",
+                    str(review_dir),
+                    "--output",
+                    str(output_path),
+                    "--dry-run",
+                    "--no-input",
+                ),
+                "State bootstrap dry run",
+            )
+            self.assert_human_stdout(
+                self.run_cli(
+                    "export-prompt",
+                    "--pass",
+                    "delta-trace",
+                    "--output",
+                    str(tmp_path / "prompt.md"),
+                    "--dry-run",
+                    "--no-input",
+                ),
+                "Prompt packet dry run",
+            )
 
     def test_machine_mode_does_not_prompt(self) -> None:
         result = self.run_cli("feedback", "noninteractive test", "--json", "--no-input")
