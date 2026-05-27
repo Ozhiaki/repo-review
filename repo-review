@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -341,6 +342,19 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             examples=["repo-review runs list --repo . --json --no-input"],
         )
     },
+    "review": {
+        **command_schema(
+            "Start, continue, package, ingest, and finish review workflows.",
+            ["--json", "--no-input", "--mode", "--repo", "--range", "--review-state", "--output", "--new-run", "--dry-run"],
+            subcommands=["start"],
+            output_schema="schemas/review_run.schema.json",
+            workflow_role="workflow",
+            mutation=True,
+            dry_run=True,
+            allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
+            examples=["repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input"],
+        )
+    },
     "state": {
         **command_schema(
             "Create and validate durable review-state artifacts.",
@@ -391,7 +405,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="entrypoint",
             mutation=True,
             dry_run=True,
-            implemented=False,
             allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
             idempotency={"natural_key_by_mode": {"delta": ["repo", "range", "review_state"], "full": ["repo", "commit"], "bootstrap": ["repo", "review_dir"]}},
             examples=["repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input"],
@@ -585,6 +598,8 @@ def human_output_supported(command: str, positionals: list[str]) -> bool:
     if command in {"status", "diff", "impact", "export-prompt", "aggregate"}:
         return True
     if command == "runs" and positionals[:1] in (["list"], ["get"], ["prune"]):
+        return True
+    if command == "review" and positionals[:1] == ["start"]:
         return True
     if command == "state" and positionals[:1] in (["bootstrap"], ["list"], ["latest"], ["get"], ["validate"]):
         return True
@@ -801,6 +816,35 @@ def human_runs(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def human_review(payload: dict[str, Any]) -> list[str]:
+    run = payload.get("run", {})
+    artifacts = run.get("artifacts", {})
+    lines = [
+        "Review start",
+        "",
+        f"Run: {run.get('run_id')}",
+        f"Status: {run.get('status')}",
+        f"Outcome: {payload.get('mutation_outcome')}",
+        f"Repo: {(run.get('repo') or {}).get('root')}",
+        f"Range: {run.get('range')}",
+        f"Prior state: {run.get('prior_review_state')}",
+        f"Output dir: {run.get('output_dir')}",
+    ]
+    if artifacts:
+        lines.extend(["", "Artifacts:"])
+        for name, path in artifacts.items():
+            if path:
+                lines.append(f"  {name}: {path}")
+    warnings = payload.get("warnings", [])
+    if warnings:
+        lines.extend(["", "Warnings:"])
+        lines.extend(f"  {warning}" for warning in warnings[:5])
+    next_action = payload.get("next_action", {})
+    if next_action.get("recommended_command"):
+        lines.extend(["", "Next:", f"  {next_action['recommended_command']}"])
+    return lines
+
+
 def emit_result(command: str, positionals: list[str], payload: dict[str, Any], json_mode: bool) -> int:
     if json_mode:
         return emit_json(payload)
@@ -822,6 +866,8 @@ def emit_result(command: str, positionals: list[str], payload: dict[str, Any], j
         return emit_human(human_aggregate(payload))
     if command == "runs":
         return emit_human(human_runs(payload))
+    if command == "review":
+        return emit_human(human_review(payload))
     return fail(f"{command} requires --json in the current CLI slice", f"Run: repo-review {command} --json")
 
 
@@ -890,7 +936,19 @@ def save_profiles(profiles: dict[str, dict[str, Any]]) -> None:
 def parse_args(args: list[str]) -> tuple[list[str], dict[str, Any]]:
     positionals: list[str] = []
     options: dict[str, Any] = {}
-    boolean_flags = {"--json", "--no-input", "--force", "--overwrite", "--overwrite-claims", "--dry-run", "--wait"}
+    boolean_flags = {
+        "--json",
+        "--no-input",
+        "--force",
+        "--overwrite",
+        "--overwrite-claims",
+        "--dry-run",
+        "--wait",
+        "--new-run",
+        "--latest",
+        "--apply",
+        "--attach-only",
+    }
     index = 0
     while index < len(args):
         arg = args[index]
@@ -2464,6 +2522,193 @@ def export_prompt_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     }
 
 
+def review_start_delta_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    missing = [flag for flag in ("repo", "range", "review_state") if not options.get(flag)]
+    if missing:
+        return fail(
+            "missing required review start input",
+            "Run: repo-review review start --mode delta --repo <path> --range <from>..<to> --review-state <id-or-path> --json --no-input",
+            valid_values=[f"--{flag.replace('_', '-')}" for flag in missing],
+        ), None
+    repo_root = Path(options["repo"]).expanduser().resolve()
+    repo, repo_error = repo_metadata(repo_root)
+    if repo_error:
+        return fail(repo_error["message"], repo_error["hint"], code=repo_error["code"], error_code="resource_not_found" if repo_error["code"] == 4 else "external_command_failed"), None
+    assert repo is not None
+    review_state_ref = options["review_state"]
+    if review_state_ref == "latest":
+        states, _ = discover_review_states(repo_root)
+        if not states:
+            return fail("review state was not found", "Run state list or pass --review-state <path>.", code=4, error_code="resource_not_found"), None
+        review_state_ref = states[0]["path"]
+    try:
+        review_state, review_state_path, warnings = load_review_state_reference(str(review_state_ref), repo_root)
+    except json.JSONDecodeError as exc:
+        return fail("review state is not valid JSON", f"{exc.msg} at line {exc.lineno}, column {exc.colno}.", code=3, error_code="validation_failed"), None
+    if review_state is None or review_state_path is None:
+        return fail("review state was not found", warnings[-1] if warnings else "Pass a valid --review-state path or ID.", code=4, error_code="resource_not_found"), None
+    state_errors = validate_review_state_shape(review_state)
+    if state_errors:
+        return fail("review state is invalid", "; ".join(state_errors), code=3, error_code="validation_failed"), None
+
+    diff_range = options["range"]
+    natural_key = {
+        "mode": "delta",
+        "repo_root": str(repo_root),
+        "range": diff_range,
+        "review_state": str(review_state_path),
+    }
+    key_hash = hashlib.sha1(json.dumps(natural_key, sort_keys=True).encode("utf-8")).hexdigest()[:10]
+    if options.get("new_run"):
+        key_hash = hashlib.sha1(f"{key_hash}:{datetime.now(timezone.utc).isoformat()}".encode("utf-8")).hexdigest()[:10]
+    run_id = f"{repo['name']}-delta-{datetime.now(timezone.utc).date().isoformat()}-{key_hash}"
+    output_dir = Path(options.get("output") or (repo_root / "reviews" / repo["name"] / f"delta-{datetime.now(timezone.utc).date().isoformat()}-{key_hash}")).expanduser().resolve()
+    diff_path = output_dir / "diff-report.json"
+    impact_path = output_dir / "impact-plan.json"
+    prompt_path = output_dir / "delta-trace-prompt.md"
+    artifacts = {
+        "diff_report": str(diff_path),
+        "impact_plan": str(impact_path),
+        "prompt_packet": str(prompt_path),
+        "review_artifact": None,
+        "drift_surface": None,
+    }
+
+    existing_runs, ledger_errors = read_review_run_ledger(repo_root)
+    if ledger_errors:
+        return fail("run ledger is invalid", ledger_errors[0], code=3, error_code="validation_failed", path=str(review_run_ledger_path(repo_root))), None
+    duplicate = None
+    if not options.get("new_run"):
+        for run in latest_review_runs(existing_runs).values():
+            if (
+                run.get("mode") == "delta"
+                and (run.get("repo") or {}).get("root") == str(repo_root)
+                and run.get("range") == diff_range
+                and run.get("prior_review_state") == str(review_state_path)
+            ):
+                duplicate = run
+                break
+    next_action = {
+        "action": "send_prompt",
+        "reason": "Prompt packet is ready for reviewer output.",
+        "recommended_command": f"repo-review review ingest --run {duplicate['run_id'] if duplicate else run_id} --input <review.md> --json --no-input",
+    }
+    blocking_files = [str(path) for path in (diff_path, impact_path, prompt_path) if path.exists() and duplicate is None]
+    if duplicate is not None:
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "start",
+            "mode": "delta",
+            "dry_run": bool(options.get("dry_run")),
+            "mutation_outcome": "existing",
+            "run": duplicate,
+            "natural_key": natural_key,
+            "artifacts": duplicate.get("artifacts", {}),
+            "surface": {"impacted_claim_count": None, "unknown_count": None},
+            "warnings": warnings,
+            "next_action": next_action,
+        }
+    if options.get("dry_run"):
+        run = {
+            "schema_version": REVIEW_RUN_SCHEMA_VERSION,
+            "run_id": run_id,
+            "mode": "delta",
+            "status": "created",
+            "repo": repo,
+            "range": diff_range,
+            "prior_review_state": str(review_state_path),
+            "output_dir": str(output_dir),
+            "artifacts": artifacts,
+            "human_decisions": [],
+            "warnings": warnings,
+            "created_at": iso_now(),
+            "updated_at": iso_now(),
+        }
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "start",
+            "mode": "delta",
+            "dry_run": True,
+            "mutation_outcome": "dry_run",
+            "run": run,
+            "natural_key": natural_key,
+            "would_read": [str(review_state_path), str(repo_root)],
+            "would_write": [str(diff_path), str(impact_path), str(prompt_path), str(review_run_ledger_path(repo_root))],
+            "blocking_files": blocking_files,
+            "warnings": warnings,
+            "next_action": {"action": "run_without_dry_run", "recommended_command": "repo-review review start --mode delta --repo <path> --range <from>..<to> --review-state <path> --json --no-input"},
+        }
+    if blocking_files:
+        return fail(
+            "review start would overwrite artifacts",
+            "Choose a new --output directory or inspect the existing files.",
+            code=5,
+            error_code="unsafe_mutation_refused",
+            valid_values=["--output", "--new-run"],
+        ), None
+
+    code, diff_report = diff_command({"repo": str(repo_root), "range": diff_range, "limit": "50"})
+    if code != 0:
+        return code, None
+    assert diff_report is not None
+    output_dir.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(diff_path, diff_report)
+    code, impact_plan = impact_command({"review_state": str(review_state_path), "diff_report": str(diff_path)})
+    if code != 0:
+        return code, None
+    assert impact_plan is not None
+    atomic_write_json(impact_path, impact_plan)
+    prompt_path.write_text(build_delta_prompt(review_state, diff_report, impact_plan), encoding="utf-8")
+    timestamp = iso_now()
+    run = {
+        "schema_version": REVIEW_RUN_SCHEMA_VERSION,
+        "run_id": run_id,
+        "mode": "delta",
+        "status": "prompt_ready",
+        "repo": repo,
+        "range": diff_range,
+        "prior_review_state": str(review_state_path),
+        "output_dir": str(output_dir),
+        "artifacts": artifacts,
+        "human_decisions": [],
+        "warnings": warnings,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    saved, errors = append_review_run_record(repo_root, run)
+    if errors:
+        return fail("run record is invalid", "; ".join(errors), code=3, error_code="validation_failed"), None
+    assert saved is not None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "start",
+        "mode": "delta",
+        "dry_run": False,
+        "mutation_outcome": "created",
+        "run": saved,
+        "natural_key": natural_key,
+        "artifacts": artifacts,
+        "surface": {
+            "impacted_claim_count": len(impact_plan.get("impacted_claims", [])),
+            "unknown_count": len(impact_plan.get("unknowns", [])),
+        },
+        "warnings": warnings,
+        "next_action": next_action,
+    }
+
+
+def review_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    if not positionals:
+        return fail("missing review subcommand", "Use one of: start.", valid_values=["start"]), None
+    subcommand = positionals[0]
+    if subcommand != "start":
+        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start.", valid_values=["start"]), None
+    mode = options.get("mode")
+    if mode != "delta":
+        return fail("unsupported or missing --mode", "Only review start --mode delta is implemented in this CLI slice.", valid_values=["delta"]), None
+    return review_start_delta_command(options)
+
+
 def required_delta_inputs(options: dict[str, Any]) -> tuple[list[str], list[str]]:
     required = ["review-state", "diff-report", "impact-plan", "output"]
     missing = [name for name in required if not options.get(name.replace("-", "_"))]
@@ -3287,6 +3532,11 @@ def main(argv: list[str]) -> int:
         if code != 0:
             return code
         return emit_json(payload or {})
+    if command == "review":
+        code, payload = review_command(positionals, options)
+        if code != 0:
+            return code
+        return emit_result(command, positionals, payload or {}, json_mode)
     if command == "runs":
         code, payload = runs_command(positionals, options)
         if code != 0:

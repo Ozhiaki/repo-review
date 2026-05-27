@@ -411,7 +411,7 @@ pass_output:
         self.assertIn("repo-review diff", diff["examples"][0])
 
         review_start = schema["review start"]
-        self.assertFalse(review_start["implemented"])
+        self.assertTrue(review_start["implemented"])
         self.assertTrue(review_start["mutation"])
         self.assertTrue(review_start["dry_run"])
         self.assertEqual(review_start["workflow_role"], "entrypoint")
@@ -431,7 +431,7 @@ pass_output:
         self.assertEqual(schema["runs prune"]["allowed_mutation_outcomes"], ["updated", "unchanged", "dry_run"])
 
         shipped_command_names = {command["name"] for command in payload["commands"]}
-        self.assertNotIn("review start", shipped_command_names)
+        self.assertIn("review", shipped_command_names)
         self.assertIn("runs", shipped_command_names)
 
     def test_review_run_schema_and_migration_helpers(self) -> None:
@@ -656,6 +656,137 @@ pass_output:
             waiting = self.assert_json_stdout(self.run_cli("status", "--repo", str(repo_root), "--json"))
             self.assertEqual(waiting["workflow_state"]["summary"], "candidate_claims_waiting")
             self.assertEqual(waiting["workflow_state"]["candidate_claims_waiting"][0]["candidate_claim_count"], 1)
+
+    def test_review_start_delta_creates_reuses_new_run_and_dry_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True, text=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo_root, check=True)
+            subprocess.run(["git", "config", "user.name", "Repo Review Test"], cwd=repo_root, check=True)
+            tracked = repo_root / "tracked.txt"
+            tracked.write_text("one\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=repo_root, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_root, check=True, capture_output=True, text=True)
+            tracked.write_text("one\ntwo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=repo_root, check=True)
+            subprocess.run(["git", "commit", "-m", "update"], cwd=repo_root, check=True, capture_output=True, text=True)
+
+            state_path = repo_root / "reviews" / "repo" / "base" / "review-state.json"
+            state_path.parent.mkdir(parents=True)
+            state = self.review_state_record(repo_root, "delta-base", "2026-05-27T00:00:00Z")
+            state["claims"][0]["watch_paths"] = ["tracked.txt"]
+            state_path.write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+            output_dir = repo_root / "reviews" / "repo" / "delta-output"
+
+            dry_run = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "start",
+                    "--mode",
+                    "delta",
+                    "--repo",
+                    str(repo_root),
+                    "--range",
+                    "HEAD~1..HEAD",
+                    "--review-state",
+                    str(state_path),
+                    "--output",
+                    str(output_dir),
+                    "--dry-run",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(dry_run["mutation_outcome"], "dry_run")
+            self.assertFalse((output_dir / "diff-report.json").exists())
+            self.assertIn(str(output_dir / "diff-report.json"), dry_run["would_write"])
+
+            created = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "start",
+                    "--mode",
+                    "delta",
+                    "--repo",
+                    str(repo_root),
+                    "--range",
+                    "HEAD~1..HEAD",
+                    "--review-state",
+                    str(state_path),
+                    "--output",
+                    str(output_dir),
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(created["mutation_outcome"], "created")
+            self.assertEqual(created["run"]["status"], "prompt_ready")
+            self.assertTrue((output_dir / "diff-report.json").is_file())
+            self.assertTrue((output_dir / "impact-plan.json").is_file())
+            self.assertTrue((output_dir / "delta-trace-prompt.md").is_file())
+            self.assertEqual(created["surface"]["impacted_claim_count"], 1)
+            self.assertTrue((repo_root / ".repo-review" / "runs.jsonl").is_file())
+
+            reused = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "start",
+                    "--mode",
+                    "delta",
+                    "--repo",
+                    str(repo_root),
+                    "--range",
+                    "HEAD~1..HEAD",
+                    "--review-state",
+                    str(state_path),
+                    "--output",
+                    str(output_dir),
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(reused["mutation_outcome"], "existing")
+            self.assertEqual(reused["run"]["run_id"], created["run"]["run_id"])
+            self.assert_human_stdout(
+                self.run_cli(
+                    "review",
+                    "start",
+                    "--mode",
+                    "delta",
+                    "--repo",
+                    str(repo_root),
+                    "--range",
+                    "HEAD~1..HEAD",
+                    "--review-state",
+                    str(state_path),
+                    "--output",
+                    str(output_dir),
+                    "--no-input",
+                ),
+                "Review start",
+            )
+
+            new_run = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "start",
+                    "--mode",
+                    "delta",
+                    "--repo",
+                    str(repo_root),
+                    "--range",
+                    "HEAD~1..HEAD",
+                    "--review-state",
+                    str(state_path),
+                    "--output",
+                    str(repo_root / "reviews" / "repo" / "delta-output-2"),
+                    "--new-run",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(new_run["mutation_outcome"], "created")
+            self.assertNotEqual(new_run["run"]["run_id"], created["run"]["run_id"])
 
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
