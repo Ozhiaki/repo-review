@@ -447,6 +447,10 @@ pass_output:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, readme)
                 self.assertIn(snippet, manifest)
+        for text in [readme, manifest]:
+            self.assertIn("created -> diff_ready -> impact_ready -> prompt_ready -> review_received -> ingested -> drift_ready -> complete", text)
+            self.assertIn("deferred", text)
+            self.assertIn("--json", text)
 
     def test_template_commands_list_get_and_write(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))

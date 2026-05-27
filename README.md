@@ -53,9 +53,11 @@ commands, flags, enums, delivery modes, helper templates, async policy, and the
 path to the agent task manifest. An agent should read this before assuming a
 command exists.
 
-`status` returns the current repo-review configuration: repo root, review output
-directory, profile settings, and suggested next actions. A script should use it
-to discover local paths and defaults instead of hard-coding them.
+`status` starts with operational workflow state: latest review state, open runs,
+prompt-ready runs, candidate claims waiting to import, warnings, and next
+action. It also returns repo root, review output directory, profile settings,
+and other configuration details. A script should use it to discover local paths
+and defaults instead of hard-coding them.
 
 The intended flow is human-first: a person applies the staged review prompts,
 keeps or edits the resulting prose, and decides what the repo means. The
@@ -88,32 +90,68 @@ claims JSON file and import it:
   --json --no-input
 ```
 
-For an incremental review of a changed repo, generate a diff report, map it to
-prior claims, and export a prompt packet:
+For an incremental review of a changed repo, prefer the workflow command first:
 
 ```bash
-./repo-review diff --repo /path/to/target --range HEAD~1..HEAD --json --no-input > diff-report.json
-
-./repo-review impact \
-  --review-state reviews/oathweaver/delta-2026-05-25/prior-review-state.json \
-  --diff-report diff-report.json \
-  --json --no-input > impact-plan.json
-
-./repo-review export-prompt \
-  --pass delta-trace \
-  --review-state reviews/oathweaver/delta-2026-05-25/prior-review-state.json \
-  --diff-report diff-report.json \
-  --impact-plan impact-plan.json \
-  --output delta-trace-prompt.md \
+./repo-review review start \
+  --mode delta \
+  --repo /path/to/target \
+  --range HEAD~1..HEAD \
+  --review-state /path/to/review-state.json \
   --json --no-input
 ```
 
-That packet is for an external reviewer or model. After it returns a delta
-review artifact, record it:
+`review start --mode delta` creates or reuses a run, writes the diff report,
+impact plan, and delta prompt packet, and normally leaves the run in
+`prompt_ready`.
+
+To inspect what should happen next without changing anything:
 
 ```bash
+./repo-review review continue --latest --json --no-input
+./repo-review review continue --latest
+```
+
+Send the prompt packet to an external reviewer or model. After it returns a
+delta review artifact, attach or ingest it and finish when complete:
+
+```bash
+./repo-review review ingest --run <run-id> --input delta-review.md --attach-only --json --no-input
+./repo-review review ingest --run <run-id> --input delta-review.md --json --no-input
+./repo-review review finish --run <run-id> --json --no-input
+```
+
+Low-level primitives remain available when you need to inspect or rebuild one
+artifact manually:
+
+```bash
+./repo-review diff --repo /path/to/target --range HEAD~1..HEAD --json --no-input > diff-report.json
+./repo-review impact --review-state /path/to/review-state.json --diff-report diff-report.json --json --no-input > impact-plan.json
+./repo-review export-prompt --pass delta-trace --review-state /path/to/review-state.json --diff-report diff-report.json --impact-plan impact-plan.json --output delta-trace-prompt.md --json --no-input
 ./repo-review ingest --input delta-review.md --kind delta-review --json --no-input
 ```
+
+Human output is the default for workflow-friendly commands. Use `--json` when a
+script or agent needs a stable contract:
+
+```bash
+./repo-review status
+./repo-review review start --mode delta --repo /path/to/target --range HEAD~1..HEAD --review-state /path/to/review-state.json
+./repo-review status --json
+./repo-review review start --mode delta --repo /path/to/target --range HEAD~1..HEAD --review-state /path/to/review-state.json --json --no-input
+```
+
+Run statuses are durable and drive `review continue`:
+
+```text
+created -> diff_ready -> impact_ready -> prompt_ready -> review_received -> ingested -> drift_ready -> complete
+```
+
+Any command may record `blocked` when a human decision is required, or `failed`
+when a durable failure/recovery hint needs to be reported. Long-running skill
+execution and webhook delivery are intentionally deferred in this CLI slice:
+the CLI packages artifacts and records state; reviewers/models still run
+outside it.
 
 ## What You Get
 

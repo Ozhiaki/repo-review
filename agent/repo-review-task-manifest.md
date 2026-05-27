@@ -158,5 +158,17 @@ review state atomically, and appends `review-state.imports.jsonl`.
 - Treat stdout as result data and stderr as diagnostics.
 - Do not rely on commands that are absent from `repo-review agent-context --json`.
 - Prefer `--no-input` on mutating commands in automated contexts.
+- Prefer workflow commands before low-level primitives:
+  `review start`, `review continue`, `review ingest`, and `review finish`.
+  Use `diff`, `impact`, and `export-prompt` when rebuilding or inspecting one
+  artifact explicitly.
+- Resolve run state through `review continue` or `runs get` instead of guessing
+  from chat context. Durable statuses move through
+  `created -> diff_ready -> impact_ready -> prompt_ready -> review_received -> ingested -> drift_ready -> complete`,
+  with `blocked` and `failed` reserved for decision/failure states.
+- Human output is available for workflow-friendly commands. Agents should still
+  request `--json` for stable parsing.
+- Long-running analyzer execution, jobs, and webhook delivery are intentionally
+  deferred; package artifacts locally and run reviewers/models outside the CLI.
 - Treat bootstrapped states as claim-empty until a reviewer explicitly imports
   human-authored candidate claims.
