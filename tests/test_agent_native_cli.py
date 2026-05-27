@@ -415,6 +415,21 @@ pass_output:
                 self.assertIn(snippet, readme)
                 self.assertIn(snippet, manifest)
 
+    def test_artifact_delivery_schema_is_standardized(self) -> None:
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        schema = {command["name"]: command for command in payload["command_schema"]}
+        self.assertEqual(payload["delivery"]["metadata_key"], "delivery_metadata")
+        self.assertEqual(payload["delivery_schemes"], ["stdout", "file:<path>"])
+        self.assertTrue(payload["webhook_delivery"]["deferred"])
+        self.assertFalse(payload["webhook_delivery"]["supported"])
+        for command_name in ["export-prompt", "review package"]:
+            with self.subTest(command=command_name):
+                flags = schema[command_name]["flags"]
+                self.assertEqual(flags["--deliver"]["type"], "delivery-scheme")
+                self.assertEqual(flags["--deliver"]["values"], ["stdout", "file:<path>"])
+                self.assertIn("--output", flags)
+                self.assertIn("--overwrite", flags)
+
     def test_agent_context_exposes_richer_command_schema(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
         schema = {command["name"]: command for command in payload["command_schema"]}
