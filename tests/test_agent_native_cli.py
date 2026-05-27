@@ -39,6 +39,9 @@ class AgentNativeCliTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         return json.loads(result.stderr)
 
+    def assert_has_keys(self, payload: dict, keys: set[str]) -> None:
+        self.assertTrue(keys <= payload.keys(), f"missing keys: {sorted(keys - payload.keys())}")
+
     def write_legacy_reviews(self, directory: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "01-first-read-fixture.md").write_text(
@@ -93,6 +96,63 @@ pass_output:
             with self.subTest(args=args):
                 payload = self.assert_json_stdout(self.run_cli(*args))
                 self.assertEqual(payload["schema_version"], 1)
+
+    def test_representative_json_success_contract_fields(self) -> None:
+        cases = [
+            (("agent-context", "--json"), {"schema_version", "commands", "vocabulary_policy", "delivery_schemes"}),
+            (("skill-path", "--json"), {"schema_version", "path", "manifest"}),
+            (("status", "--json"), {"schema_version", "configured_paths", "sources", "next_actions"}),
+            (("profile", "list", "--json", "--no-input"), {"schema_version", "profiles"}),
+            (
+                ("diff", "--repo", str(ROOT), "--range", "HEAD~1..HEAD", "--limit", "1", "--json", "--no-input"),
+                {"schema_version", "repo", "range", "changed_files", "summary_stats", "truncation"},
+            ),
+            (
+                (
+                    "claims",
+                    "list",
+                    "--review-state",
+                    "reviews/oathweaver/delta-2026-05-25/prior-review-state.json",
+                    "--limit",
+                    "1",
+                    "--json",
+                    "--no-input",
+                ),
+                {"schema_version", "review_state", "claims", "truncation"},
+            ),
+            (
+                (
+                    "aggregate",
+                    "--review-state",
+                    "reviews/repo-review/calibration-2026-05-25/review-state.json",
+                    "--json",
+                    "--no-input",
+                ),
+                {"schema_version", "review_state_count", "review_states", "totals", "claim_identity"},
+            ),
+        ]
+        for args, required_keys in cases:
+            with self.subTest(args=args):
+                payload = self.assert_json_stdout(self.run_cli(*args))
+                self.assert_has_keys(payload, required_keys)
+
+    def test_json_failure_contract_keeps_stdout_empty(self) -> None:
+        cases = [
+            (("status",), "invalid_invocation", "status requires --json"),
+            (("unknown-command", "--json"), "invalid_invocation", "unknown command"),
+            (("impact", "--json", "--no-input"), "invalid_invocation", "missing required --review-state"),
+            (
+                ("export-prompt", "--pass", "delta-trace", "--deliver=file:", "--json", "--no-input"),
+                "invalid_invocation",
+                "missing file delivery path",
+            ),
+        ]
+        for args, expected_code, expected_message in cases:
+            with self.subTest(args=args):
+                diagnostic = self.assert_json_stderr(self.run_cli(*args))
+                self.assertEqual(diagnostic["code"], expected_code)
+                self.assertIn(expected_message, diagnostic["message"])
+                self.assertIn("hint", diagnostic)
 
     def test_machine_mode_does_not_prompt(self) -> None:
         result = self.run_cli("feedback", "noninteractive test", "--json", "--no-input")
