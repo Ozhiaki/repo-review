@@ -28,6 +28,70 @@ REVIEW_RUN_STATUSES = [
     "blocked",
     "failed",
 ]
+REVIEW_RUN_STATUS_CONTRACTS = {
+    "created": {
+        "meaning": "Run record exists, but initial artifacts are not complete.",
+        "next_action": "Continue setup or inspect the blocking warning.",
+        "recommended_command": "repo-review review continue --run <run-id> --json --no-input",
+    },
+    "diff_ready": {
+        "meaning": "Diff report exists.",
+        "next_action": "Generate the impact plan.",
+        "recommended_command": "repo-review impact --review-state <path> --diff-report <path> --json --no-input",
+    },
+    "impact_ready": {
+        "meaning": "Impact plan exists.",
+        "next_action": "Package the reviewer prompt.",
+        "recommended_command": "repo-review review package --run <run-id> --json --no-input",
+    },
+    "prompt_ready": {
+        "meaning": "Reviewer prompt exists.",
+        "next_action": "Send the prompt to a reviewer or model and wait for output.",
+        "recommended_command": "repo-review review ingest --run <run-id> --input <review.md> --attach-only --json --no-input",
+    },
+    "review_received": {
+        "meaning": "Reviewer output is attached to the run but not imported.",
+        "next_action": "Ingest the reviewer output.",
+        "recommended_command": "repo-review review ingest --run <run-id> --json --no-input",
+    },
+    "ingested": {
+        "meaning": "Reviewer output has been ingested.",
+        "next_action": "Surface drift or summarize imported results.",
+        "recommended_command": "repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input",
+    },
+    "drift_ready": {
+        "meaning": "Drift surface exists.",
+        "next_action": "Aggregate, accept, or request follow-up review.",
+        "recommended_command": "repo-review review finish --run <run-id> --json --no-input",
+    },
+    "complete": {
+        "meaning": "Required workflow artifacts and decisions are resolved.",
+        "next_action": "Report final artifacts.",
+        "recommended_command": "repo-review review status --run <run-id> --json --no-input",
+    },
+    "blocked": {
+        "meaning": "Human decision or missing input prevents progress.",
+        "next_action": "Report the blocker and required decision.",
+        "recommended_command": None,
+    },
+    "failed": {
+        "meaning": "A command failed after making the failure durable.",
+        "next_action": "Report the error, retry safety, and recovery command.",
+        "recommended_command": None,
+    },
+}
+REVIEW_RUN_TRANSITIONS = [
+    {"from": None, "to": "created", "producer": "review start"},
+    {"from": "created", "to": "diff_ready", "producer": "review start internal step or diff once run binding exists"},
+    {"from": "diff_ready", "to": "impact_ready", "producer": "review start internal step or impact once run binding exists"},
+    {"from": "impact_ready", "to": "prompt_ready", "producer": "review start internal step, review package, or export-prompt once run binding exists"},
+    {"from": "prompt_ready", "to": "review_received", "producer": "review ingest --attach-only or equivalent future attach behavior"},
+    {"from": "review_received", "to": "ingested", "producer": "review ingest"},
+    {"from": "ingested", "to": "drift_ready", "producer": "drift surface once run binding exists"},
+    {"from": "drift_ready", "to": "complete", "producer": "review finish"},
+    {"from": "*", "to": "blocked", "producer": "any command that reaches a human-decision point or missing required input"},
+    {"from": "*", "to": "failed", "producer": "any command after recording a durable failure and recovery hint"},
+]
 ROOT = Path(__file__).resolve().parent
 MANIFEST_DIR = ROOT / "agent"
 MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
@@ -629,6 +693,12 @@ def agent_context() -> dict[str, Any]:
             "jobs_supported": False,
             "wait_supported": False,
             "reason": "v1 assembles prompt packets and records external analyzer outputs; it does not execute long-running analysis.",
+        },
+        "review_run": {
+            "schema_version": REVIEW_RUN_SCHEMA_VERSION,
+            "schema": "schemas/review_run.schema.json",
+            "statuses": REVIEW_RUN_STATUS_CONTRACTS,
+            "transitions": REVIEW_RUN_TRANSITIONS,
         },
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
@@ -1232,6 +1302,22 @@ def validate_review_run_shape(record: Any) -> list[str]:
         if not isinstance(migrated.get(key), str) or not migrated.get(key):
             errors.append(f"{key} must be a non-empty string.")
     return errors
+
+
+def review_run_next_action(status: str) -> dict[str, Any]:
+    contract = REVIEW_RUN_STATUS_CONTRACTS.get(status)
+    if contract is None:
+        return {
+            "status": status,
+            "next_action": "Report invalid run status and inspect the run ledger.",
+            "recommended_command": None,
+        }
+    return {
+        "status": status,
+        "meaning": contract["meaning"],
+        "next_action": contract["next_action"],
+        "recommended_command": contract["recommended_command"],
+    }
 
 
 def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:

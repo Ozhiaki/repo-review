@@ -282,6 +282,29 @@ pass_output:
         self.assertTrue(any("status must be one of" in error for error in validation_errors))
         self.assertTrue(any("repo.root is required" in error for error in validation_errors))
 
+    def test_review_run_transition_contracts_are_discoverable(self) -> None:
+        cli = self.load_cli_module()
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        review_run = payload["review_run"]
+        self.assertEqual(review_run["schema"], "schemas/review_run.schema.json")
+        self.assertEqual(set(review_run["statuses"]), set(cli.REVIEW_RUN_STATUSES))
+        for status in cli.REVIEW_RUN_STATUSES:
+            with self.subTest(status=status):
+                contract = review_run["statuses"][status]
+                self.assertIn("meaning", contract)
+                self.assertIn("next_action", contract)
+                action = cli.review_run_next_action(status)
+                self.assertEqual(action["next_action"], contract["next_action"])
+
+        transitions = {(transition["from"], transition["to"]): transition["producer"] for transition in review_run["transitions"]}
+        self.assertEqual(transitions[(None, "created")], "review start")
+        self.assertIn("review ingest", transitions[("review_received", "ingested")])
+        self.assertIn("review finish", transitions[("drift_ready", "complete")])
+        self.assertIn("human-decision", transitions[("*", "blocked")])
+        self.assertIn("recovery hint", transitions[("*", "failed")])
+        self.assertIsNone(review_run["statuses"]["blocked"]["recommended_command"])
+        self.assertIsNone(review_run["statuses"]["failed"]["recommended_command"])
+
     def test_profile_precedence_flag_env_profile_default(self) -> None:
         profile_name = "test-precedence"
         try:
