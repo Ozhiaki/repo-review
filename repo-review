@@ -417,7 +417,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             output_schema="schemas/review_run.schema.json",
             workflow_role="resume",
             mutation=True,
-            implemented=False,
             examples=["repo-review review continue --latest --json --no-input"],
         )
     },
@@ -438,7 +437,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="artifact",
             mutation=True,
             dry_run=True,
-            implemented=False,
             allowed_mutation_outcomes=["created", "existing", "updated", "dry_run"],
         )
     },
@@ -599,7 +597,7 @@ def human_output_supported(command: str, positionals: list[str]) -> bool:
         return True
     if command == "runs" and positionals[:1] in (["list"], ["get"], ["prune"]):
         return True
-    if command == "review" and positionals[:1] == ["start"]:
+    if command == "review" and positionals[:1] in (["start"], ["package"], ["continue"]):
         return True
     if command == "state" and positionals[:1] in (["bootstrap"], ["list"], ["latest"], ["get"], ["validate"]):
         return True
@@ -819,8 +817,13 @@ def human_runs(payload: dict[str, Any]) -> list[str]:
 def human_review(payload: dict[str, Any]) -> list[str]:
     run = payload.get("run", {})
     artifacts = run.get("artifacts", {})
+    title = {
+        "package": "Review package",
+        "continue": "Review continue",
+        "start": "Review start",
+    }.get(payload.get("action"), "Review")
     lines = [
-        "Review start",
+        title,
         "",
         f"Run: {run.get('run_id')}",
         f"Status: {run.get('status')}",
@@ -2697,12 +2700,140 @@ def review_start_delta_command(options: dict[str, Any]) -> tuple[int, dict[str, 
     }
 
 
+def resolve_review_run(options: dict[str, Any]) -> tuple[dict[str, Any] | None, Path | None, list[str]]:
+    repo_root = Path(options.get("repo") or ROOT).expanduser().resolve()
+    records, errors = read_review_run_ledger(repo_root)
+    if errors:
+        return None, repo_root, errors
+    latest = sorted(latest_review_runs(records).values(), key=lambda item: item.get("updated_at", ""), reverse=True)
+    run_id = options.get("run")
+    if run_id:
+        for run in latest:
+            if run.get("run_id") == run_id:
+                return run, repo_root, []
+        return None, repo_root, [f"review run '{run_id}' was not found in {review_run_ledger_path(repo_root)}."]
+    if options.get("latest"):
+        if not latest:
+            return None, repo_root, [f"no review runs exist in {review_run_ledger_path(repo_root)}."]
+        return latest[0], repo_root, []
+    return None, repo_root, ["missing --run or --latest."]
+
+
+def review_package_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    run, repo_root, errors = resolve_review_run(options)
+    assert repo_root is not None
+    if errors:
+        return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
+    assert run is not None
+    if run.get("status") not in {"impact_ready", "prompt_ready"}:
+        return fail(
+            "run is not ready to package",
+            "Only impact_ready runs can be packaged into prompt_ready runs.",
+            code=3,
+            error_code="validation_failed",
+            valid_values=["impact_ready"],
+        ), None
+    artifacts = dict(run.get("artifacts") or {})
+    output_path = Path(options.get("output") or artifacts.get("prompt_packet") or (Path(run["output_dir"]) / "delta-trace-prompt.md")).expanduser().resolve()
+    would_write = str(output_path)
+    if options.get("dry_run"):
+        next_action = {
+            "action": "package_run",
+            "recommended_command": f"repo-review review package --run {run['run_id']} --json --no-input",
+        }
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "package",
+            "dry_run": True,
+            "mutation_outcome": "dry_run",
+            "run": {**run, "artifacts": {**artifacts, "prompt_packet": str(output_path)}},
+            "would_write": [would_write, str(review_run_ledger_path(repo_root))],
+            "warnings": [],
+            "next_action": next_action,
+        }
+    if output_path.exists() and not options.get("overwrite") and run.get("status") != "prompt_ready":
+        return fail(
+            "prompt packet already exists",
+            "Add --overwrite to replace the prompt packet or choose --output <path>.",
+            code=5,
+            error_code="unsafe_mutation_refused",
+            valid_values=["--overwrite", "--output"],
+        ), None
+    review_state, code = load_json_file(run.get("prior_review_state"), "review-state")
+    if code != 0:
+        return code, None
+    diff_report, code = load_json_file(artifacts.get("diff_report"), "diff-report")
+    if code != 0:
+        return code, None
+    impact_plan, code = load_json_file(artifacts.get("impact_plan"), "impact-plan")
+    if code != 0:
+        return code, None
+    assert review_state is not None and diff_report is not None and impact_plan is not None
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(build_delta_prompt(review_state, diff_report, impact_plan), encoding="utf-8")
+    updated_artifacts = {**artifacts, "prompt_packet": str(output_path)}
+    updated, update_errors = update_review_run_record(
+        repo_root,
+        run["run_id"],
+        {"status": "prompt_ready", "artifacts": updated_artifacts},
+    )
+    if update_errors:
+        return fail("run record is invalid", "; ".join(update_errors), code=3, error_code="validation_failed"), None
+    assert updated is not None
+    next_action = {
+        "action": "send_prompt",
+        "recommended_command": f"repo-review review ingest --run {run['run_id']} --input <review.md> --json --no-input",
+    }
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "package",
+        "dry_run": False,
+        "mutation_outcome": "updated",
+        "run": updated,
+        "warnings": [],
+        "next_action": next_action,
+    }
+
+
+def review_continue_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    run, repo_root, errors = resolve_review_run(options)
+    assert repo_root is not None
+    if errors:
+        return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
+    assert run is not None
+    next_action = review_run_next_action(run.get("status"))
+    if options.get("apply"):
+        if run.get("status") == "impact_ready":
+            package_options = {**options, "run": run["run_id"]}
+            return review_package_command(package_options)
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "continue",
+            "applied": False,
+            "run": run,
+            "next_action": next_action,
+            "blocker": "No deterministic transition is available for this status.",
+        }
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "continue",
+        "applied": False,
+        "run": run,
+        "next_action": next_action,
+        "blocker": None if next_action.get("recommended_command") else next_action.get("next_action"),
+    }
+
+
 def review_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
-        return fail("missing review subcommand", "Use one of: start.", valid_values=["start"]), None
+        return fail("missing review subcommand", "Use one of: start, package, continue.", valid_values=["start", "package", "continue"]), None
     subcommand = positionals[0]
+    if subcommand == "package":
+        return review_package_command(options)
+    if subcommand == "continue":
+        return review_continue_command(options)
     if subcommand != "start":
-        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start.", valid_values=["start"]), None
+        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start, package, continue.", valid_values=["start", "package", "continue"]), None
     mode = options.get("mode")
     if mode != "delta":
         return fail("unsupported or missing --mode", "Only review start --mode delta is implemented in this CLI slice.", valid_values=["delta"]), None

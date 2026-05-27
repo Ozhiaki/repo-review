@@ -788,6 +788,92 @@ pass_output:
             self.assertEqual(new_run["mutation_outcome"], "created")
             self.assertNotEqual(new_run["run"]["run_id"], created["run"]["run_id"])
 
+    def test_review_package_and_continue_resolve_and_apply_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            output_dir = repo_root / "reviews" / "repo" / "delta"
+            output_dir.mkdir(parents=True)
+            state_path = output_dir / "review-state.json"
+            diff_path = output_dir / "diff-report.json"
+            impact_path = output_dir / "impact-plan.json"
+            prompt_path = output_dir / "delta-trace-prompt.md"
+            state = self.review_state_record(repo_root, "package-state")
+            state_path.write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+            diff_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "repo": {"name": repo_root.name, "root": str(repo_root), "remote": None},
+                        "range": {"expression": "HEAD~1..HEAD", "from_commit": "a", "to_commit": "b"},
+                        "changed_files": [{"path": "tracked.txt", "status": "modified", "classifications": ["core-logic"]}],
+                        "summary_stats": {"files_changed": 1, "additions": 1, "deletions": 0},
+                        "truncation": {"limit": 50, "shown": 1, "total": 1, "truncated": False},
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            impact_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "from_review": "package-state",
+                        "to_repo_commit": "b",
+                        "diff_range": "HEAD~1..HEAD",
+                        "path_hits": [],
+                        "trigger_hits": [],
+                        "impacted_claims": [{"claim_id": "central", "impact": "unknown"}],
+                        "unaffected_claims": [],
+                        "unknowns": [],
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            run = self.review_run_record("package-run")
+            run["status"] = "impact_ready"
+            run["repo"]["root"] = str(repo_root)
+            run["prior_review_state"] = str(state_path)
+            run["output_dir"] = str(output_dir)
+            run["artifacts"] = {
+                "diff_report": str(diff_path),
+                "impact_plan": str(impact_path),
+                "prompt_packet": str(prompt_path),
+                "review_artifact": None,
+                "drift_surface": None,
+            }
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            ledger.write_text(json.dumps(run, sort_keys=True) + "\n", encoding="utf-8")
+
+            dry_run = self.assert_json_stdout(
+                self.run_cli("review", "package", "--repo", str(repo_root), "--run", "package-run", "--dry-run", "--json", "--no-input")
+            )
+            self.assertEqual(dry_run["mutation_outcome"], "dry_run")
+            self.assertFalse(prompt_path.exists())
+            self.assertIn(str(prompt_path), dry_run["would_write"])
+            self.assert_human_stdout(
+                self.run_cli("review", "package", "--repo", str(repo_root), "--run", "package-run", "--dry-run", "--no-input"),
+                "Review package",
+            )
+
+            report = self.assert_json_stdout(self.run_cli("review", "continue", "--repo", str(repo_root), "--run", "package-run", "--json", "--no-input"))
+            self.assertEqual(report["action"], "continue")
+            self.assertNotIn("mutation_outcome", report)
+            self.assertEqual(report["next_action"]["status"], "impact_ready")
+
+            applied = self.assert_json_stdout(
+                self.run_cli("review", "continue", "--repo", str(repo_root), "--run", "package-run", "--apply", "--json", "--no-input")
+            )
+            self.assertEqual(applied["action"], "package")
+            self.assertEqual(applied["mutation_outcome"], "updated")
+            self.assertEqual(applied["run"]["status"], "prompt_ready")
+            self.assertTrue(prompt_path.is_file())
+
+            latest = self.assert_json_stdout(self.run_cli("review", "continue", "--repo", str(repo_root), "--latest", "--json", "--no-input"))
+            self.assertEqual(latest["run"]["run_id"], "package-run")
+            self.assertEqual(latest["run"]["status"], "prompt_ready")
+
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
