@@ -66,73 +66,185 @@ HELPER_TEMPLATES = [
 ]
 
 
-COMMANDS: dict[str, dict[str, Any]] = {
+FLAG_SCHEMA: dict[str, dict[str, Any]] = {
+    "--json": {"type": "boolean", "required": True, "default": False},
+    "--no-input": {"type": "boolean", "required": False, "default": False},
+    "--force": {"type": "boolean", "required": False, "default": False},
+    "--overwrite": {"type": "boolean", "required": False, "default": False},
+    "--overwrite-claims": {"type": "boolean", "required": False, "default": False},
+    "--dry-run": {"type": "boolean", "required": False, "default": False},
+    "--wait": {"type": "boolean", "required": False, "default": False, "deferred": True},
+    "--pass": {"type": "enum", "required": False, "values": ["delta-trace"]},
+    "--review-state": {"type": "path", "required": False, "repeatable": True},
+    "--diff-report": {"type": "path", "required": False},
+    "--impact-plan": {"type": "path", "required": False},
+    "--output": {"type": "path", "required": False},
+    "--deliver": {"type": "delivery-scheme", "required": False, "values": ["stdout", "file:<path>"]},
+    "--range": {"type": "git-revision-range", "required": False},
+    "--repo": {"type": "path", "required": False},
+    "--path": {"type": "path", "required": False, "repeatable": True},
+    "--limit": {"type": "integer", "required": False, "default": 20},
+    "--input": {"type": "path", "required": False},
+    "--kind": {"type": "string", "required": False},
+    "--drift": {"type": "path", "required": False, "repeatable": True},
+    "--claim-status": {"type": "enum", "required": False, "values": ["active", "superseded", "contested", "invalidated"]},
+    "--subject": {"type": "string", "required": False},
+    "--to-review": {"type": "string", "required": False},
+    "--profile": {"type": "string", "required": False},
+    "--review-dir": {"type": "path", "required": False},
+    "--review-state-id": {"type": "string", "required": False},
+    "--created-at": {"type": "datetime", "required": False},
+    "--source-analyzer-id": {"type": "string", "required": False},
+    "--source-kind": {"type": "enum", "required": False, "values": ["human", "hybrid", "llm", "tool", "unknown"]},
+    "--source-model": {"type": "string", "required": False},
+    "--source-tool-context": {"type": "string", "required": False},
+    "--source-prompt-set-version": {"type": "string", "required": False},
+    "--source-notes": {"type": "string", "required": False},
+    "--analyzer-id": {"type": "string", "required": False},
+    "--lane-vocabulary": {"type": "path", "required": False},
+    "--output-mode": {"type": "enum", "required": False, "values": ["json"]},
+    "--mode": {"type": "enum", "required": False, "values": ["full", "delta", "bootstrap"]},
+    "--new-run": {"type": "boolean", "required": False, "default": False},
+    "--run": {"type": "string", "required": False},
+    "--latest": {"type": "boolean", "required": False, "default": False},
+    "--apply": {"type": "boolean", "required": False, "default": False},
+    "--attach-only": {"type": "boolean", "required": False, "default": False},
+}
+
+
+def flag_specs(names: list[str]) -> dict[str, dict[str, Any]]:
+    return {name: dict(FLAG_SCHEMA.get(name, {"type": "string", "required": False})) for name in names}
+
+
+def command_schema(
+    purpose: str,
+    flags: list[str],
+    *,
+    subcommands: list[str] | None = None,
+    output_schema: str | None = None,
+    workflow_role: str = "primitive",
+    mutation: bool = False,
+    dry_run: bool = False,
+    implemented: bool = True,
+    examples: list[str] | None = None,
+    idempotency: dict[str, Any] | None = None,
+    allowed_mutation_outcomes: list[str] | None = None,
+    deferred: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "purpose": purpose,
+        "workflow_role": workflow_role,
+        "implemented": implemented,
+        "mutation": mutation,
+        "dry_run": dry_run,
+        "flags": flag_specs(flags),
+        "subcommands": subcommands or [],
+        "output_schema": output_schema,
+        "examples": examples or [],
+        "idempotency": idempotency,
+        "allowed_mutation_outcomes": allowed_mutation_outcomes or [],
+        "deferred": deferred or {},
+    }
+
+
+COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
     "agent-context": {
-        "purpose": "Return machine-readable command and workflow context for agents.",
-        "flags": ["--json"],
-        "output_schema": None,
+        **command_schema(
+            "Return machine-readable command and workflow context for agents.",
+            ["--json"],
+            workflow_role="introspection",
+            examples=["repo-review agent-context --json"],
+        )
     },
     "feedback": {
-        "purpose": "Record local feedback about CLI or review workflow friction.",
-        "flags": ["--json", "--no-input"],
-        "output_schema": None,
+        **command_schema(
+            "Record local feedback about CLI or review workflow friction.",
+            ["--json", "--no-input"],
+            mutation=True,
+            examples=['repo-review feedback "message" --json --no-input'],
+        )
     },
     "export-prompt": {
-        "purpose": "Write a delta review prompt packet from prior state, diff report, and impact plan.",
-        "flags": ["--json", "--no-input", "--pass", "--review-state", "--diff-report", "--impact-plan", "--output", "--deliver", "--overwrite", "--dry-run"],
-        "output_schema": None,
+        **command_schema(
+            "Write a delta review prompt packet from prior state, diff report, and impact plan.",
+            ["--json", "--no-input", "--pass", "--review-state", "--diff-report", "--impact-plan", "--output", "--deliver", "--overwrite", "--dry-run"],
+            mutation=True,
+            dry_run=True,
+            examples=["repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input"],
+        )
     },
     "diff": {
-        "purpose": "Return a bounded structured git diff report.",
-        "flags": ["--json", "--no-input", "--range", "--repo", "--path", "--limit"],
-        "output_schema": "schemas/diff_report.schema.json",
+        **command_schema(
+            "Return a bounded structured git diff report.",
+            ["--json", "--no-input", "--range", "--repo", "--path", "--limit"],
+            output_schema="schemas/diff_report.schema.json",
+            examples=["repo-review diff --repo . --range HEAD~1..HEAD --json --no-input"],
+        )
     },
     "impact": {
-        "purpose": "Map a diff report to likely affected review claims.",
-        "flags": ["--json", "--no-input", "--review-state", "--diff-report"],
-        "output_schema": "schemas/impact_plan.schema.json",
+        **command_schema(
+            "Map a diff report to likely affected review claims.",
+            ["--json", "--no-input", "--review-state", "--diff-report"],
+            output_schema="schemas/impact_plan.schema.json",
+            examples=["repo-review impact --review-state <path> --diff-report <path> --json --no-input"],
+        )
     },
     "next": {
-        "purpose": "Return the next actionable repo-review workflow step.",
-        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output"],
-        "output_schema": None,
+        **command_schema(
+            "Return the next actionable repo-review workflow step.",
+            ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output"],
+        )
     },
     "ingest": {
-        "purpose": "Validate and record an external analyzer artifact.",
-        "flags": ["--json", "--no-input", "--input", "--kind"],
-        "output_schema": None,
+        **command_schema(
+            "Validate and record an external analyzer artifact.",
+            ["--json", "--no-input", "--input", "--kind"],
+            mutation=True,
+            examples=["repo-review ingest --input <path> --kind delta-review --json --no-input"],
+        )
     },
     "delta": {
-        "purpose": "Return v1 delta orchestration metadata and recommended prompt-packet command.",
-        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output", "--wait"],
-        "output_schema": None,
+        **command_schema(
+            "Return v1 delta orchestration metadata and recommended prompt-packet command.",
+            ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--output", "--wait"],
+            deferred={"--wait": "Long-running analysis execution is deferred in v1."},
+        )
     },
     "aggregate": {
-        "purpose": "Summarize multiple review states and optional drift outputs without merging claim identity.",
-        "flags": ["--json", "--no-input", "--review-state", "--drift", "--limit"],
-        "output_schema": None,
+        **command_schema(
+            "Summarize multiple review states and optional drift outputs without merging claim identity.",
+            ["--json", "--no-input", "--review-state", "--drift", "--limit"],
+        )
     },
     "claims": {
-        "purpose": "Query durable claims from review states and impact plans.",
-        "flags": ["--json", "--no-input", "--review-state", "--impact-plan", "--input", "--force", "--overwrite-claims", "--claim-status", "--kind", "--subject", "--limit"],
-        "subcommands": ["list", "get", "affected", "import"],
-        "output_schema": None,
+        **command_schema(
+            "Query durable claims from review states and impact plans.",
+            ["--json", "--no-input", "--review-state", "--impact-plan", "--input", "--force", "--overwrite-claims", "--claim-status", "--kind", "--subject", "--limit"],
+            subcommands=["list", "get", "affected", "import"],
+            mutation=True,
+            examples=["repo-review claims list --review-state <path> --json --no-input"],
+        )
     },
     "drift": {
-        "purpose": "Generate structured Drift Surfacer outputs.",
-        "flags": ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--to-review"],
-        "subcommands": ["surface"],
-        "output_schema": "schemas/delta_drift.schema.json",
+        **command_schema(
+            "Generate structured Drift Surfacer outputs.",
+            ["--json", "--no-input", "--review-state", "--diff-report", "--impact-plan", "--to-review"],
+            subcommands=["surface"],
+            output_schema="schemas/delta_drift.schema.json",
+        )
     },
     "profile": {
-        "purpose": "Manage local repo-review profiles.",
-        "flags": ["--json", "--no-input", "--force"],
-        "subcommands": ["list", "show", "save", "delete"],
-        "output_schema": None,
+        **command_schema(
+            "Manage local repo-review profiles.",
+            ["--json", "--no-input", "--force"],
+            subcommands=["list", "show", "save", "delete"],
+            mutation=True,
+        )
     },
     "state": {
-        "purpose": "Create and validate durable review-state artifacts.",
-        "flags": [
+        **command_schema(
+            "Create and validate durable review-state artifacts.",
+            [
             "--json",
             "--no-input",
             "--repo",
@@ -148,21 +260,163 @@ COMMANDS: dict[str, dict[str, Any]] = {
             "--source-notes",
             "--dry-run",
             "--overwrite",
-        ],
-        "subcommands": ["bootstrap"],
-        "output_schema": "schemas/review_state.schema.json",
+            ],
+            subcommands=["bootstrap"],
+            output_schema="schemas/review_state.schema.json",
+            mutation=True,
+            dry_run=True,
+            examples=["repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input"],
+        )
     },
     "skill-path": {
-        "purpose": "Return the local directory containing the repo-review agent task manifest.",
-        "flags": ["--json"],
-        "output_schema": None,
+        **command_schema(
+            "Return the local directory containing the repo-review agent task manifest.",
+            ["--json"],
+            workflow_role="introspection",
+        )
     },
     "status": {
-        "purpose": "Return configured paths, available profiles, and next relevant review actions.",
-        "flags": ["--json", "--profile", "--repo", "--output", "--analyzer-id", "--lane-vocabulary", "--output-mode"],
-        "output_schema": None,
+        **command_schema(
+            "Return configured paths, available profiles, and next relevant review actions.",
+            ["--json", "--profile", "--repo", "--output", "--analyzer-id", "--lane-vocabulary", "--output-mode"],
+            workflow_role="status",
+        )
+    },
+    "review start": {
+        **command_schema(
+            "Start a full, delta, or bootstrap review workflow.",
+            ["--json", "--no-input", "--mode", "--repo", "--range", "--review-state", "--output", "--new-run", "--dry-run"],
+            workflow_role="entrypoint",
+            mutation=True,
+            dry_run=True,
+            implemented=False,
+            idempotency={"natural_key_by_mode": {"delta": ["repo", "range", "review_state"], "full": ["repo", "commit"], "bootstrap": ["repo", "review_dir"]}},
+            examples=["repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input"],
+        )
+    },
+    "review continue": {
+        **command_schema(
+            "Report or apply the next safe action for an existing review run.",
+            ["--json", "--no-input", "--run", "--latest", "--apply"],
+            workflow_role="resume",
+            mutation=True,
+            implemented=False,
+            examples=["repo-review review continue --latest --json --no-input"],
+        )
+    },
+    "review status": {
+        **command_schema(
+            "Summarize one review run or the latest review run.",
+            ["--json", "--no-input", "--run", "--latest"],
+            workflow_role="status",
+            implemented=False,
+        )
+    },
+    "review package": {
+        **command_schema(
+            "Assemble or update reviewer-ready prompt artifacts for a run.",
+            ["--json", "--no-input", "--run", "--latest", "--output", "--deliver", "--overwrite", "--dry-run"],
+            workflow_role="artifact",
+            mutation=True,
+            dry_run=True,
+            implemented=False,
+        )
+    },
+    "review ingest": {
+        **command_schema(
+            "Attach and ingest reviewer output for a run.",
+            ["--json", "--no-input", "--run", "--latest", "--input", "--kind", "--attach-only", "--dry-run"],
+            workflow_role="ingest",
+            mutation=True,
+            dry_run=True,
+            implemented=False,
+        )
+    },
+    "review finish": {
+        **command_schema(
+            "Validate completion requirements and mark a run complete.",
+            ["--json", "--no-input", "--run", "--latest", "--dry-run"],
+            workflow_role="finish",
+            mutation=True,
+            dry_run=True,
+            implemented=False,
+        )
+    },
+    "state latest": {
+        **command_schema(
+            "Resolve the latest usable review state for a repo.",
+            ["--json", "--no-input", "--repo", "--mode"],
+            workflow_role="state-discovery",
+            implemented=False,
+        )
+    },
+    "state list": {
+        **command_schema(
+            "List known review states for a repo.",
+            ["--json", "--no-input", "--repo"],
+            workflow_role="state-discovery",
+            implemented=False,
+        )
+    },
+    "state get": {
+        **command_schema(
+            "Resolve one review state by ID or path.",
+            ["--json", "--no-input", "--review-state"],
+            workflow_role="state-discovery",
+            implemented=False,
+        )
+    },
+    "state validate": {
+        **command_schema(
+            "Validate one review state and report readiness warnings.",
+            ["--json", "--no-input", "--review-state"],
+            workflow_role="state-discovery",
+            implemented=False,
+        )
+    },
+    "runs list": {
+        **command_schema(
+            "List persisted review runs.",
+            ["--json", "--no-input", "--repo", "--limit"],
+            workflow_role="runs",
+            implemented=False,
+        )
+    },
+    "runs get": {
+        **command_schema(
+            "Return one persisted review run by ID.",
+            ["--json", "--no-input", "--run"],
+            workflow_role="runs",
+            implemented=False,
+        )
+    },
+    "runs prune": {
+        **command_schema(
+            "Prune completed review run records with explicit boundaries.",
+            ["--json", "--no-input", "--repo", "--dry-run", "--force"],
+            workflow_role="runs",
+            mutation=True,
+            dry_run=True,
+            implemented=False,
+        )
     },
 }
+
+
+def implemented_commands(schema: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "purpose": entry["purpose"],
+            "flags": list(entry["flags"]),
+            "subcommands": entry.get("subcommands", []),
+            "output_schema": entry["output_schema"],
+        }
+        for name, entry in schema.items()
+        if entry["implemented"] and " " not in name
+    }
+
+
+COMMANDS: dict[str, dict[str, Any]] = implemented_commands(COMMAND_SCHEMA)
 
 
 VOCABULARY_POLICY = {
@@ -302,6 +556,24 @@ def profile_names() -> list[str]:
 
 
 def agent_context() -> dict[str, Any]:
+    command_schema_payload = [
+        {
+            "name": name,
+            "purpose": entry["purpose"],
+            "workflow_role": entry["workflow_role"],
+            "implemented": entry["implemented"],
+            "mutation": entry["mutation"],
+            "dry_run": entry["dry_run"],
+            "flags": entry["flags"],
+            "subcommands": entry.get("subcommands", []),
+            "output_schema": entry["output_schema"],
+            "examples": entry["examples"],
+            "idempotency": entry["idempotency"],
+            "allowed_mutation_outcomes": entry["allowed_mutation_outcomes"],
+            "deferred": entry["deferred"],
+        }
+        for name, entry in sorted(COMMAND_SCHEMA.items())
+    ]
     return {
         "schema_version": SCHEMA_VERSION,
         "commands": [
@@ -314,6 +586,7 @@ def agent_context() -> dict[str, Any]:
             }
             for name, entry in sorted(COMMANDS.items())
         ],
+        "command_schema": command_schema_payload,
         "enums": ENUMS,
         "delivery_schemes": ENUMS["delivery_scheme"],
         "helper_templates": HELPER_TEMPLATES,

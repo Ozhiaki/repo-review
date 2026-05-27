@@ -189,6 +189,37 @@ pass_output:
         self.assertTrue(payload["webhook_delivery"]["deferred"])
         self.assertFalse(payload["webhook_delivery"]["supported"])
 
+    def test_agent_context_exposes_richer_command_schema(self) -> None:
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        schema = {command["name"]: command for command in payload["command_schema"]}
+        self.assertIn("diff", schema)
+        self.assertIn("review start", schema)
+        self.assertIn("runs prune", schema)
+
+        diff = schema["diff"]
+        self.assertTrue(diff["implemented"])
+        self.assertFalse(diff["mutation"])
+        self.assertEqual(diff["flags"]["--limit"]["type"], "integer")
+        self.assertEqual(diff["output_schema"], "schemas/diff_report.schema.json")
+        self.assertIn("repo-review diff", diff["examples"][0])
+
+        review_start = schema["review start"]
+        self.assertFalse(review_start["implemented"])
+        self.assertTrue(review_start["mutation"])
+        self.assertTrue(review_start["dry_run"])
+        self.assertEqual(review_start["workflow_role"], "entrypoint")
+        self.assertEqual(review_start["flags"]["--mode"]["type"], "enum")
+        self.assertIn("delta", review_start["flags"]["--mode"]["values"])
+        self.assertEqual(review_start["idempotency"]["natural_key_by_mode"]["delta"], ["repo", "range", "review_state"])
+
+        export_prompt = schema["export-prompt"]
+        self.assertTrue(export_prompt["mutation"])
+        self.assertTrue(export_prompt["dry_run"])
+        self.assertEqual(export_prompt["flags"]["--deliver"]["type"], "delivery-scheme")
+
+        shipped_command_names = {command["name"] for command in payload["commands"]}
+        self.assertNotIn("review start", shipped_command_names)
+
     def test_profile_precedence_flag_env_profile_default(self) -> None:
         profile_name = "test-precedence"
         try:
