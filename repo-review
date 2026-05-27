@@ -448,7 +448,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="ingest",
             mutation=True,
             dry_run=True,
-            implemented=False,
             allowed_mutation_outcomes=["created", "updated", "existing", "imported", "unchanged", "dry_run"],
         )
     },
@@ -460,7 +459,6 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="finish",
             mutation=True,
             dry_run=True,
-            implemented=False,
             allowed_mutation_outcomes=["updated", "unchanged", "dry_run"],
         )
     },
@@ -597,7 +595,7 @@ def human_output_supported(command: str, positionals: list[str]) -> bool:
         return True
     if command == "runs" and positionals[:1] in (["list"], ["get"], ["prune"]):
         return True
-    if command == "review" and positionals[:1] in (["start"], ["package"], ["continue"]):
+    if command == "review" and positionals[:1] in (["start"], ["package"], ["continue"], ["ingest"], ["finish"]):
         return True
     if command == "state" and positionals[:1] in (["bootstrap"], ["list"], ["latest"], ["get"], ["validate"]):
         return True
@@ -820,6 +818,8 @@ def human_review(payload: dict[str, Any]) -> list[str]:
     title = {
         "package": "Review package",
         "continue": "Review continue",
+        "ingest": "Review ingest",
+        "finish": "Review finish",
         "start": "Review start",
     }.get(payload.get("action"), "Review")
     lines = [
@@ -2824,16 +2824,134 @@ def review_continue_command(options: dict[str, Any]) -> tuple[int, dict[str, Any
     }
 
 
+def parse_review_output(path: Path, kind: str) -> tuple[dict[str, Any], list[str]]:
+    text = path.read_text(encoding="utf-8")
+    warnings: list[str] = []
+    candidate_claim_count = text.count("candidate_claim")
+    drift_count = text.count("drift")
+    if kind == "delta-review" and "delta_review:" not in text:
+        return {}, ["Expected a delta_review: block in the reviewer output."]
+    return {
+        "kind": kind,
+        "path": str(path),
+        "bytes": path.stat().st_size,
+        "candidate_claim_count": candidate_claim_count,
+        "drift_count": drift_count,
+    }, warnings
+
+
+def review_ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    run, repo_root, errors = resolve_review_run(options)
+    assert repo_root is not None
+    if errors:
+        return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
+    assert run is not None
+    input_value = options.get("input") or (run.get("artifacts") or {}).get("review_artifact")
+    if not input_value:
+        return fail("missing required --input", "Run: repo-review review ingest --run <id> --input <review-output> --json --no-input", valid_values=["--input"]), None
+    input_path = Path(input_value).expanduser().resolve()
+    if not input_path.is_file():
+        return fail("review output was not found", f"Expected readable file at {input_path}.", code=4, error_code="resource_not_found", path=str(input_path)), None
+    attach_only = bool(options.get("attach_only"))
+    kind = options.get("kind") or "delta-review"
+    target_status = "review_received" if attach_only else "ingested"
+    artifacts = {**(run.get("artifacts") or {}), "review_artifact": str(input_path)}
+    if options.get("dry_run"):
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "ingest",
+            "dry_run": True,
+            "mutation_outcome": "dry_run",
+            "attach_only": attach_only,
+            "run": {**run, "status": target_status, "artifacts": artifacts},
+            "would_read": [str(input_path)],
+            "would_write": [str(review_run_ledger_path(repo_root))],
+            "candidate_claims": [],
+            "drift": [],
+            "warnings": [],
+            "next_action": review_run_next_action(target_status),
+        }
+    parsed = {"kind": kind, "path": str(input_path), "bytes": input_path.stat().st_size, "candidate_claim_count": 0, "drift_count": 0}
+    parse_warnings: list[str] = []
+    if not attach_only:
+        parsed, parse_warnings = parse_review_output(input_path, kind)
+        if parse_warnings:
+            return fail("review output has wrong artifact kind", parse_warnings[0], code=3, error_code="validation_failed", valid_values=["delta-review"], path=str(input_path)), None
+    updated, update_errors = update_review_run_record(repo_root, run["run_id"], {"status": target_status, "artifacts": artifacts})
+    if update_errors:
+        return fail("run record is invalid", "; ".join(update_errors), code=3, error_code="validation_failed"), None
+    assert updated is not None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "ingest",
+        "dry_run": False,
+        "mutation_outcome": "updated",
+        "attach_only": attach_only,
+        "run": updated,
+        "review_output": parsed,
+        "candidate_claims": {"count": parsed.get("candidate_claim_count", 0)},
+        "drift": {"count": parsed.get("drift_count", 0)},
+        "warnings": parse_warnings,
+        "next_action": review_run_next_action(target_status),
+    }
+
+
+def review_finish_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    run, repo_root, errors = resolve_review_run(options)
+    assert repo_root is not None
+    if errors:
+        return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
+    assert run is not None
+    finishable = run.get("status") in {"ingested", "drift_ready"}
+    if options.get("dry_run"):
+        return 0, {
+            "schema_version": SCHEMA_VERSION,
+            "action": "finish",
+            "dry_run": True,
+            "mutation_outcome": "dry_run",
+            "finishable": finishable,
+            "run": {**run, "status": "complete"} if finishable else run,
+            "warnings": [] if finishable else ["Run is not finishable until reviewer output is ingested."],
+            "next_action": review_run_next_action("complete" if finishable else run.get("status")),
+        }
+    if not finishable:
+        return fail(
+            "run is not finishable",
+            "Ingest reviewer output before finishing the run.",
+            code=5,
+            error_code="unsafe_mutation_refused",
+            valid_values=["review ingest"],
+        ), None
+    updated, update_errors = update_review_run_record(repo_root, run["run_id"], {"status": "complete"})
+    if update_errors:
+        return fail("run record is invalid", "; ".join(update_errors), code=3, error_code="validation_failed"), None
+    assert updated is not None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "finish",
+        "dry_run": False,
+        "mutation_outcome": "updated",
+        "finishable": True,
+        "run": updated,
+        "warnings": [],
+        "next_action": review_run_next_action("complete"),
+    }
+
+
 def review_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
-        return fail("missing review subcommand", "Use one of: start, package, continue.", valid_values=["start", "package", "continue"]), None
+        return fail("missing review subcommand", "Use one of: start, package, continue, ingest, finish.", valid_values=["start", "package", "continue", "ingest", "finish"]), None
     subcommand = positionals[0]
     if subcommand == "package":
         return review_package_command(options)
     if subcommand == "continue":
         return review_continue_command(options)
+    if subcommand == "ingest":
+        return review_ingest_command(options)
+    if subcommand == "finish":
+        return review_finish_command(options)
     if subcommand != "start":
-        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start, package, continue.", valid_values=["start", "package", "continue"]), None
+        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start, package, continue, ingest, finish.", valid_values=["start", "package", "continue", "ingest", "finish"]), None
     mode = options.get("mode")
     if mode != "delta":
         return fail("unsupported or missing --mode", "Only review start --mode delta is implemented in this CLI slice.", valid_values=["delta"]), None

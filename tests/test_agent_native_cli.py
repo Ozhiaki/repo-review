@@ -874,6 +874,135 @@ pass_output:
             self.assertEqual(latest["run"]["run_id"], "package-run")
             self.assertEqual(latest["run"]["status"], "prompt_ready")
 
+    def test_review_ingest_and_finish_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp).resolve()
+            output_dir = repo_root / "reviews" / "repo" / "delta"
+            output_dir.mkdir(parents=True)
+            review_output = output_dir / "review.md"
+            invalid_output = output_dir / "invalid.md"
+            review_output.write_text("delta_review:\n  summary: ok\ncandidate_claim: one\ndrift: none\n", encoding="utf-8")
+            invalid_output.write_text("plain text\n", encoding="utf-8")
+            run = self.review_run_record("ingest-run")
+            run["status"] = "prompt_ready"
+            run["repo"]["root"] = str(repo_root)
+            run["output_dir"] = str(output_dir)
+            ledger = repo_root / ".repo-review" / "runs.jsonl"
+            ledger.parent.mkdir(parents=True)
+            ledger.write_text(json.dumps(run, sort_keys=True) + "\n", encoding="utf-8")
+
+            dry_run = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(review_output),
+                    "--attach-only",
+                    "--dry-run",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(dry_run["mutation_outcome"], "dry_run")
+            self.assertEqual(dry_run["run"]["status"], "review_received")
+
+            attached = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(review_output),
+                    "--attach-only",
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(attached["run"]["status"], "review_received")
+            self.assert_human_stdout(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(review_output),
+                    "--attach-only",
+                    "--dry-run",
+                    "--no-input",
+                ),
+                "Review ingest",
+            )
+
+            invalid = self.assert_json_stderr(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(invalid_output),
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(invalid["code"], "validation_failed")
+
+            ingested = self.assert_json_stdout(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(review_output),
+                    "--json",
+                    "--no-input",
+                )
+            )
+            self.assertEqual(ingested["run"]["status"], "ingested")
+            self.assertEqual(ingested["candidate_claims"]["count"], 1)
+            self.assertEqual(ingested["drift"]["count"], 1)
+
+            prompt_run = self.review_run_record("prompt-run")
+            prompt_run["status"] = "prompt_ready"
+            prompt_run["repo"]["root"] = str(repo_root)
+            with ledger.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(prompt_run, sort_keys=True) + "\n")
+            refused = self.assert_json_stderr(
+                self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "prompt-run", "--json", "--no-input")
+            )
+            self.assertEqual(refused["code"], "unsafe_mutation_refused")
+
+            finish_dry_run = self.assert_json_stdout(
+                self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--dry-run", "--json", "--no-input")
+            )
+            self.assertEqual(finish_dry_run["mutation_outcome"], "dry_run")
+            self.assertTrue(finish_dry_run["finishable"])
+
+            finished = self.assert_json_stdout(
+                self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--json", "--no-input")
+            )
+            self.assertEqual(finished["mutation_outcome"], "updated")
+            self.assertEqual(finished["run"]["status"], "complete")
+            self.assert_human_stdout(
+                self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--dry-run", "--no-input"),
+                "Review finish",
+            )
+
     def test_review_run_transition_contracts_are_discoverable(self) -> None:
         cli = self.load_cli_module()
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
