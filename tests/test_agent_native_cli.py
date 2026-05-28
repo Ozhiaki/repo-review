@@ -496,6 +496,89 @@ pass_output:
                 self.assertIn("--output", flags)
                 self.assertIn("--overwrite", flags)
 
+    def test_delta_review_artifact_contract_is_discoverable(self) -> None:
+        schema_path = ROOT / "schemas" / "delta_review_artifact.schema.json"
+        self.assertTrue(schema_path.is_file())
+        schema_doc = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema_doc["properties"]["kind"]["const"], "delta-review")
+        self.assertIn("delta_review", schema_doc["required"])
+        self.assertEqual(
+            set(schema_doc["properties"]["delta_review"]["required"]),
+            {"summary", "candidate_claims", "drift", "warnings"},
+        )
+
+        payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
+        self.assertIn("delta-review", payload["enums"]["artifact_kind"])
+        self.assertEqual(
+            payload["artifact_schemas"]["delta-review"]["schema"],
+            "schemas/delta_review_artifact.schema.json",
+        )
+        command_schema = {command["name"]: command for command in payload["command_schema"]}
+        for command_name in ("ingest", "review ingest"):
+            with self.subTest(command=command_name):
+                command = command_schema[command_name]
+                self.assertIn("delta-review", command["artifact_schemas"])
+                self.assertIn("delta-review", command["flags"]["--kind"]["values"])
+
+    def test_delta_review_artifact_contract_validation(self) -> None:
+        cli = self.load_cli_module()
+        minimal = {
+            "schema_version": 1,
+            "kind": "delta-review",
+            "delta_review": {
+                "summary": "",
+                "candidate_claims": [],
+                "drift": [],
+                "warnings": [],
+            },
+        }
+        rich = {
+            "schema_version": 1,
+            "kind": "delta-review",
+            "delta_review": {
+                "summary": "The change strengthens a prior claim.",
+                "candidate_claims": [self.candidate_claim(), "Prose-only claim candidate."],
+                "drift": [
+                    {
+                        "source_claim": "first_read.central",
+                        "update_kind": "strengthened",
+                        "drift_kind": "subject_drift",
+                        "reason": "A behavior changed.",
+                    },
+                    "Prose-only drift note.",
+                ],
+                "warnings": ["No follow-up required."],
+                "metadata": {"reviewer": "fixture"},
+            },
+        }
+        prose_only = {
+            "schema_version": 1,
+            "kind": "delta-review",
+            "delta_review": {
+                "summary": "Only prose entries were provided.",
+                "candidate_claims": ["Claim candidate in prose."],
+                "drift": ["Subject drift described in prose."],
+                "warnings": [],
+            },
+        }
+        self.assertEqual(cli.validate_delta_review_artifact_shape(minimal), [])
+        self.assertEqual(cli.validate_delta_review_artifact_shape(rich), [])
+        self.assertEqual(cli.validate_delta_review_artifact_shape(prose_only), [])
+
+        malformed_kind = {**minimal, "kind": "delta_drift"}
+        self.assertIn("kind must be delta-review.", cli.validate_delta_review_artifact_shape(malformed_kind))
+        missing_block = dict(minimal)
+        del missing_block["delta_review"]
+        self.assertIn("delta_review is required.", cli.validate_delta_review_artifact_shape(missing_block))
+        malformed_list = {
+            **minimal,
+            "delta_review": {**minimal["delta_review"], "candidate_claims": "not-a-list"},
+        }
+        self.assertIn(
+            "delta_review.candidate_claims must be an array.",
+            cli.validate_delta_review_artifact_shape(malformed_list),
+        )
+
     def test_agent_context_exposes_richer_command_schema(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
         schema = {command["name"]: command for command in payload["command_schema"]}

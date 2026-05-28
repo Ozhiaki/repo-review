@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-review.local/schemas/delta_review_artifact.schema.json",
+  "title": "repo-review delta review artifact",
+  "description": "Contract for reviewer output accepted as kind: delta-review. Markdown remains the primary artifact format; this schema describes the equivalent structured JSON object and the YAML appendix shape inside Markdown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "delta_review"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "delta-review"
+    },
+    "delta_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "candidate_claims", "drift", "warnings"],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "candidate_claims": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "candidate_claim.schema.json"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "drift": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "delta_drift.schema.json#/$defs/driftEntries/items"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "source_claim": {
+                    "$ref": "common.schema.json#/$defs/claimRef"
+                  },
+                  "update_kind": {
+                    "type": "string",
+                    "enum": ["new", "strengthened", "weakened", "invalidated", "unchanged", "unknown"]
+                  },
+                  "drift_kind": {
+                    "type": "string",
+                    "enum": ["subject_drift", "analysis_drift", "both", "unknown"]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

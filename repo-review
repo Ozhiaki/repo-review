@@ -94,6 +94,17 @@ REVIEW_RUN_TRANSITIONS = [
     {"from": "*", "to": "blocked", "producer": "any command that reaches a human-decision point or missing required input"},
     {"from": "*", "to": "failed", "producer": "any command after recording a durable failure and recovery hint"},
 ]
+REVIEW_ARTIFACT_SCHEMAS = {
+    "delta-review": {
+        "kind": "delta-review",
+        "schema": "schemas/delta_review_artifact.schema.json",
+        "primary_format": "markdown-with-yaml-appendix",
+        "json_format": "json-object",
+        "required_block": "delta_review",
+        "required_top_level_fields": ["schema_version", "kind", "delta_review"],
+        "allowed_empty_fields": ["candidate_claims", "drift", "warnings"],
+    }
+}
 ROOT = Path(__file__).resolve().parent
 MANIFEST_DIR = ROOT / "agent"
 MANIFEST_PATH = MANIFEST_DIR / "repo-review-task-manifest.md"
@@ -213,20 +224,27 @@ def command_schema(
     idempotency: dict[str, Any] | None = None,
     allowed_mutation_outcomes: list[str] | None = None,
     deferred: dict[str, Any] | None = None,
+    artifact_schemas: list[str] | None = None,
+    flag_overrides: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    flags_payload = flag_specs(flags)
+    if flag_overrides:
+        for name, override in flag_overrides.items():
+            flags_payload[name] = {**flags_payload.get(name, {}), **override}
     return {
         "purpose": purpose,
         "workflow_role": workflow_role,
         "implemented": implemented,
         "mutation": mutation,
         "dry_run": dry_run,
-        "flags": flag_specs(flags),
+        "flags": flags_payload,
         "subcommands": subcommands or [],
         "output_schema": output_schema,
         "examples": examples or [],
         "idempotency": idempotency,
         "allowed_mutation_outcomes": allowed_mutation_outcomes or [],
         "deferred": deferred or {},
+        "artifact_schemas": artifact_schemas or [],
     }
 
 
@@ -288,6 +306,8 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             ["--json", "--no-input", "--input", "--kind"],
             mutation=True,
             allowed_mutation_outcomes=["created"],
+            artifact_schemas=["delta-review"],
+            flag_overrides={"--kind": {"type": "enum", "values": ["delta-review", "external-analyzer-output"]}},
             examples=["repo-review ingest --input <path> --kind delta-review --json --no-input"],
         )
     },
@@ -462,6 +482,8 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             mutation=True,
             dry_run=True,
             allowed_mutation_outcomes=["created", "updated", "existing", "imported", "unchanged", "dry_run"],
+            artifact_schemas=["delta-review"],
+            flag_overrides={"--kind": {"type": "enum", "values": ["delta-review"]}},
         )
     },
     "review finish": {
@@ -582,6 +604,7 @@ ENUMS = {
     },
     "review_mode": ["full", "delta"],
     "analyzer_kind": ["human", "hybrid", "llm", "tool", "unknown"],
+    "artifact_kind": sorted(REVIEW_ARTIFACT_SCHEMAS),
     "diff_classification": [
         "docs-only",
         "tests-only",
@@ -1026,6 +1049,7 @@ def agent_context() -> dict[str, Any]:
             "idempotency": entry["idempotency"],
             "allowed_mutation_outcomes": entry["allowed_mutation_outcomes"],
             "deferred": entry["deferred"],
+            "artifact_schemas": entry["artifact_schemas"],
         }
         for name, entry in sorted(COMMAND_SCHEMA.items())
     ]
@@ -1069,6 +1093,7 @@ def agent_context() -> dict[str, Any]:
             "statuses": REVIEW_RUN_STATUS_CONTRACTS,
             "transitions": REVIEW_RUN_TRANSITIONS,
         },
+        "artifact_schemas": REVIEW_ARTIFACT_SCHEMAS,
         "mutation_outcomes": MUTATION_OUTCOMES,
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
@@ -1617,6 +1642,45 @@ def validate_claim_shape(claim: Any, label: str, require_identity: bool = True) 
             errors.append(f"{label}.{key} must be an array.")
     if "produced_by_analyzer" in claim:
         errors.extend(validate_analyzer(claim["produced_by_analyzer"], f"{label}.produced_by_analyzer"))
+    return errors
+
+
+def validate_delta_review_artifact_shape(artifact: Any) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(artifact, dict):
+        return ["delta-review artifact must be an object."]
+    for key in ("schema_version", "kind", "delta_review"):
+        if key not in artifact:
+            errors.append(f"{key} is required.")
+    if artifact.get("schema_version") != SCHEMA_VERSION:
+        errors.append("schema_version must be 1.")
+    if artifact.get("kind") != "delta-review":
+        errors.append("kind must be delta-review.")
+
+    block = artifact.get("delta_review")
+    if not isinstance(block, dict):
+        errors.append("delta_review must be an object.")
+        return errors
+
+    for key in ("summary", "candidate_claims", "drift", "warnings"):
+        if key not in block:
+            errors.append(f"delta_review.{key} is required.")
+    if "summary" in block and not isinstance(block["summary"], str):
+        errors.append("delta_review.summary must be a string.")
+    for key in ("candidate_claims", "drift", "warnings"):
+        if key in block and not isinstance(block[key], list):
+            errors.append(f"delta_review.{key} must be an array.")
+    for index, item in enumerate(block.get("candidate_claims", []) if isinstance(block.get("candidate_claims"), list) else []):
+        if not isinstance(item, (dict, str)):
+            errors.append(f"delta_review.candidate_claims[{index}] must be an object or prose string.")
+    for index, item in enumerate(block.get("drift", []) if isinstance(block.get("drift"), list) else []):
+        if not isinstance(item, (dict, str)):
+            errors.append(f"delta_review.drift[{index}] must be an object or prose string.")
+    for index, item in enumerate(block.get("warnings", []) if isinstance(block.get("warnings"), list) else []):
+        if not isinstance(item, (dict, str)):
+            errors.append(f"delta_review.warnings[{index}] must be an object or prose string.")
+    if "metadata" in block and not isinstance(block["metadata"], dict):
+        errors.append("delta_review.metadata must be an object.")
     return errors
 
 
