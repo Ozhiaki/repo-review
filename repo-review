@@ -1397,6 +1397,66 @@ def parse_yaml_subset(block: str) -> dict[str, Any]:
     return root
 
 
+def extract_unfenced_yaml_block(text: str, top_key: str) -> str | None:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if re.match(rf"^{re.escape(top_key)}:\s*$", line):
+            return "\n".join(lines[index:])
+    return None
+
+
+def yaml_scalar_value(block: str, key: str) -> str | None:
+    match = re.search(rf"^\s+{re.escape(key)}:\s*(.+?)\s*$", block, flags=re.MULTILINE)
+    if not match:
+        return None
+    value = match.group(1).strip()
+    if value in {"[]", "{}"}:
+        return ""
+    return value.strip('"').strip("'")
+
+
+def yaml_list_items(block: str, key: str) -> tuple[list[dict[str, Any]], bool]:
+    lines = block.splitlines()
+    for index, line in enumerate(lines):
+        match = re.match(rf"^(\s+){re.escape(key)}:\s*(.*)$", line)
+        if not match:
+            continue
+        key_indent = len(match.group(1))
+        inline_value = match.group(2).strip()
+        if inline_value == "[]":
+            return [], True
+        if inline_value:
+            return [], False
+        items: list[dict[str, Any]] = []
+        item: dict[str, Any] | None = None
+        for child in lines[index + 1 :]:
+            if not child.strip():
+                continue
+            indent = len(child) - len(child.lstrip(" "))
+            if indent <= key_indent:
+                break
+            stripped = child.strip()
+            if stripped.startswith("- "):
+                if item is not None:
+                    items.append(item)
+                item = {}
+                remainder = stripped[2:].strip()
+                if remainder:
+                    if ":" in remainder:
+                        item_key, item_value = remainder.split(":", 1)
+                        item[item_key.strip()] = parse_scalar(item_value.strip())
+                    else:
+                        item["text"] = remainder
+                continue
+            if item is not None and ":" in stripped:
+                item_key, item_value = stripped.split(":", 1)
+                item[item_key.strip()] = parse_scalar(item_value.strip())
+        if item is not None:
+            items.append(item)
+        return items, True
+    return [], True
+
+
 def extract_frontmatter(text: str) -> dict[str, Any]:
     if not text.startswith("---\n"):
         return {}
@@ -2908,18 +2968,70 @@ def review_continue_command(options: dict[str, Any]) -> tuple[int, dict[str, Any
 
 def parse_review_output(path: Path, kind: str) -> tuple[dict[str, Any], list[str]]:
     text = path.read_text(encoding="utf-8")
-    warnings: list[str] = []
-    candidate_claim_count = text.count("candidate_claim")
-    drift_count = text.count("drift")
-    if kind == "delta-review" and "delta_review:" not in text:
-        return {}, ["Expected a delta_review: block in the reviewer output."]
+    if kind not in REVIEW_ARTIFACT_SCHEMAS:
+        return {}, [f"Unknown review artifact kind {kind!r}."]
+    stripped = text.lstrip()
+    if stripped.startswith("{"):
+        try:
+            artifact = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return {}, [f"Review artifact is not valid JSON: {exc.msg} at line {exc.lineno}, column {exc.colno}."]
+        errors = validate_delta_review_artifact_shape(artifact)
+        if errors:
+            return {}, errors
+        if artifact.get("kind") != kind:
+            return {}, [f"Expected artifact kind {kind!r}; found {artifact.get('kind')!r}."]
+        delta_review = artifact["delta_review"]
+        candidate_claims = delta_review.get("candidate_claims", [])
+        drift = delta_review.get("drift", [])
+        return {
+            "kind": kind,
+            "path": str(path),
+            "bytes": path.stat().st_size,
+            "source_format": "json",
+            "parser_mode": "structured-json",
+            "summary": delta_review.get("summary", ""),
+            "candidate_claim_count": len(candidate_claims),
+            "candidate_claims": candidate_claims,
+            "drift_count": len(drift),
+            "drift": drift,
+            "warnings": delta_review.get("warnings", []),
+            "validation_errors": [],
+        }, []
+
+    block = extract_yaml_block(text, "delta_review") or extract_unfenced_yaml_block(text, "delta_review")
+    source_format = "markdown-delta-review-block" if block else None
+    if block is None:
+        frontmatter = extract_frontmatter(text)
+        if "delta_review" in frontmatter:
+            block = text[4 : text.find("\n---", 4)]
+            source_format = "markdown-frontmatter"
+    if block is None:
+        return {}, ["Expected a delta_review block in the reviewer output."]
+
+    candidate_claims, candidate_claims_ok = yaml_list_items(block, "candidate_claims")
+    drift, drift_ok = yaml_list_items(block, "drift")
+    validation_errors: list[str] = []
+    if not candidate_claims_ok:
+        validation_errors.append("delta_review.candidate_claims must be an array.")
+    if not drift_ok:
+        validation_errors.append("delta_review.drift must be an array.")
+    if validation_errors:
+        return {}, validation_errors
     return {
         "kind": kind,
         "path": str(path),
         "bytes": path.stat().st_size,
-        "candidate_claim_count": candidate_claim_count,
-        "drift_count": drift_count,
-    }, warnings
+        "source_format": source_format or "markdown-delta-review-block",
+        "parser_mode": "structured-markdown",
+        "summary": yaml_scalar_value(block, "summary") or "",
+        "candidate_claim_count": len(candidate_claims),
+        "candidate_claims": candidate_claims,
+        "drift_count": len(drift),
+        "drift": drift,
+        "warnings": [],
+        "validation_errors": [],
+    }, []
 
 
 def review_ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:

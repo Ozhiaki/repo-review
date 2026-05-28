@@ -579,6 +579,74 @@ pass_output:
             cli.validate_delta_review_artifact_shape(malformed_list),
         )
 
+    def test_structured_review_parser_uses_parsed_entries(self) -> None:
+        cli = self.load_cli_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "delta-review.md"
+            review_path.write_text(
+                """This prompt text mentions candidate_claim, drift, subject_drift, and analysis_drift.
+
+```yaml
+delta_review:
+  summary: Structured result.
+  candidate_claims:
+    - id: one
+      statement: First parsed claim.
+    - id: two
+      statement: Second parsed claim.
+  drift:
+    - drift_kind: subject_drift
+      reason: Parsed drift only.
+```
+""",
+                encoding="utf-8",
+            )
+            parsed, errors = cli.parse_review_output(review_path, "delta-review")
+            self.assertEqual(errors, [])
+            self.assertEqual(parsed["source_format"], "markdown-delta-review-block")
+            self.assertEqual(parsed["parser_mode"], "structured-markdown")
+            self.assertEqual(parsed["candidate_claim_count"], 2)
+            self.assertEqual(parsed["drift_count"], 1)
+
+    def test_structured_review_parser_accepts_json_artifacts(self) -> None:
+        cli = self.load_cli_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "delta-review.json"
+            review_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "kind": "delta-review",
+                        "delta_review": {
+                            "summary": "JSON result.",
+                            "candidate_claims": [self.candidate_claim()],
+                            "drift": ["Prose drift entry."],
+                            "warnings": [],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            parsed, errors = cli.parse_review_output(review_path, "delta-review")
+            self.assertEqual(errors, [])
+            self.assertEqual(parsed["source_format"], "json")
+            self.assertEqual(parsed["parser_mode"], "structured-json")
+            self.assertEqual(parsed["candidate_claim_count"], 1)
+            self.assertEqual(parsed["drift_count"], 1)
+
+    def test_structured_review_parser_rejects_missing_block_and_unknown_kind(self) -> None:
+        cli = self.load_cli_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "plain.md"
+            review_path.write_text("Plain output mentioning delta_review only in prose.\n", encoding="utf-8")
+            parsed, errors = cli.parse_review_output(review_path, "delta-review")
+            self.assertEqual(parsed, {})
+            self.assertIn("Expected a delta_review block in the reviewer output.", errors)
+
+            parsed, errors = cli.parse_review_output(review_path, "other-kind")
+            self.assertEqual(parsed, {})
+            self.assertIn("Unknown review artifact kind 'other-kind'.", errors)
+
     def test_agent_context_exposes_richer_command_schema(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
         schema = {command["name"]: command for command in payload["command_schema"]}
@@ -1071,7 +1139,23 @@ pass_output:
             output_dir.mkdir(parents=True)
             review_output = output_dir / "review.md"
             invalid_output = output_dir / "invalid.md"
-            review_output.write_text("delta_review:\n  summary: ok\ncandidate_claim: one\ndrift: none\n", encoding="utf-8")
+            review_output.write_text(
+                """Prompt vocabulary outside the structured block should not count:
+subject_drift analysis_drift candidate_claim drift.
+
+```yaml
+delta_review:
+  summary: ok
+  candidate_claims:
+    - id: central
+      statement: one
+  drift:
+    - drift_kind: subject_drift
+      reason: none
+```
+""",
+                encoding="utf-8",
+            )
             invalid_output.write_text("plain text\n", encoding="utf-8")
             run = self.review_run_record("ingest-run")
             run["status"] = "prompt_ready"
@@ -1164,6 +1248,8 @@ pass_output:
                 )
             )
             self.assertEqual(ingested["run"]["status"], "ingested")
+            self.assertEqual(ingested["review_output"]["source_format"], "markdown-delta-review-block")
+            self.assertEqual(ingested["review_output"]["parser_mode"], "structured-markdown")
             self.assertEqual(ingested["candidate_claims"]["count"], 1)
             self.assertEqual(ingested["drift"]["count"], 1)
 
