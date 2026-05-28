@@ -647,6 +647,51 @@ delta_review:
             self.assertEqual(parsed, {})
             self.assertIn("Unknown review artifact kind 'other-kind'.", errors)
 
+    def test_low_level_ingest_records_thin_shared_parser_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            review_path = Path(tmp) / "delta-review.md"
+            malformed_path = Path(tmp) / "malformed.md"
+            review_path.write_text(
+                """Prompt text mentions candidate_claim, drift, subject_drift, and analysis_drift.
+
+```yaml
+delta_review:
+  summary: ok
+  candidate_claims:
+    - id: central
+  drift:
+    - reason: parsed only
+```
+""",
+                encoding="utf-8",
+            )
+            malformed_path.write_text("No structured appendix here.\n", encoding="utf-8")
+
+            valid = self.assert_json_stdout(
+                self.run_cli("ingest", "--input", str(review_path), "--kind", "delta-review", "--json", "--no-input")
+            )
+            summary = valid["record"]["parse_summary"]
+            self.assertEqual(summary["source_format"], "markdown-delta-review-block")
+            self.assertEqual(summary["parser_mode"], "structured-markdown")
+            self.assertEqual(summary["candidate_claim_count"], 1)
+            self.assertEqual(summary["drift_count"], 1)
+            self.assertNotIn("candidate_claims", summary)
+            self.assertNotIn("drift", summary)
+
+            malformed = self.assert_json_stdout(
+                self.run_cli("ingest", "--input", str(malformed_path), "--kind", "delta-review", "--json", "--no-input")
+            )
+            malformed_summary = malformed["record"]["parse_summary"]
+            self.assertEqual(malformed_summary["candidate_claim_count"], 0)
+            self.assertIn("Expected a delta_review block", malformed_summary["validation_errors"][0])
+            self.assertIn("parser validation failed", malformed["warnings"][0])
+
+            unsupported = self.assert_json_stderr(
+                self.run_cli("ingest", "--input", str(review_path), "--kind", "other-kind", "--json", "--no-input")
+            )
+            self.assertEqual(unsupported["code"], "validation_failed")
+            self.assertIn("delta-review", unsupported["valid_values"])
+
     def test_agent_context_exposes_richer_command_schema(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))
         schema = {command["name"]: command for command in payload["command_schema"]}

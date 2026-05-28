@@ -3202,14 +3202,39 @@ def ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]
     input_path = Path(input_path_value)
     if not input_path.is_file():
         return fail("input artifact was not found", f"Expected readable file at {input_path}.", code=4, error_code="resource_not_found"), None
-    text = input_path.read_text(encoding="utf-8")
-    if kind == "delta-review" and "delta_review:" not in text:
+    parse_summary: dict[str, Any] | None = None
+    parser_warnings: list[str] = []
+    parser_validation_errors: list[str] = []
+    if kind == "delta-review":
+        parsed, parser_validation_errors = parse_review_output(input_path, kind)
+        if parsed:
+            parse_summary = {
+                "kind": parsed["kind"],
+                "source_format": parsed.get("source_format"),
+                "parser_mode": parsed.get("parser_mode"),
+                "candidate_claim_count": parsed.get("candidate_claim_count", 0),
+                "drift_count": parsed.get("drift_count", 0),
+                "warnings": parsed.get("warnings", []),
+                "validation_errors": [],
+            }
+        else:
+            parser_warnings = ["delta-review parser validation failed; recording low-level ingest entry with validation summary."]
+            parse_summary = {
+                "kind": kind,
+                "source_format": None,
+                "parser_mode": "structured",
+                "candidate_claim_count": 0,
+                "drift_count": 0,
+                "warnings": parser_warnings,
+                "validation_errors": parser_validation_errors,
+            }
+    elif kind != "external-analyzer-output":
         return fail(
-            "delta-review artifact is missing structured appendix",
-            "Expected a delta_review: block in the analyzer output.",
+            "unsupported artifact kind",
+            "Low-level ingest currently supports external-analyzer-output and delta-review.",
             code=3,
             error_code="validation_failed",
-            valid_values=["delta-review"],
+            valid_values=["external-analyzer-output", "delta-review"],
         ), None
     STATE_DIR.mkdir(exist_ok=True)
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -3222,9 +3247,18 @@ def ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]
         "input": str(input_path),
         "bytes": input_path.stat().st_size,
     }
+    if parse_summary is not None:
+        entry["parse_summary"] = parse_summary
     with INGEST_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
-    return 0, {"schema_version": SCHEMA_VERSION, "mutation_outcome": "created", "entry_id": entry_id, "path": str(INGEST_PATH), "record": entry}
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "mutation_outcome": "created",
+        "entry_id": entry_id,
+        "path": str(INGEST_PATH),
+        "record": entry,
+        "warnings": parser_warnings,
+    }
 
 
 def delta_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
