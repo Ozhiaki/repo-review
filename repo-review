@@ -874,6 +874,19 @@ def human_review(payload: dict[str, Any]) -> list[str]:
         for name, path in artifacts.items():
             if path:
                 lines.append(f"  {name}: {path}")
+    if payload.get("action") == "ingest" and "review_output" in payload:
+        candidate_claim_count = (payload.get("candidate_claims") or {}).get("count", 0)
+        drift_count = (payload.get("drift") or {}).get("count", 0)
+        review_output = payload.get("review_output") or {}
+        lines.extend(
+            [
+                "",
+                "Parsed review output:",
+                f"  Format: {review_output.get('source_format')}",
+                f"  Candidate claims: {candidate_claim_count}",
+                f"  Drift entries: {drift_count}",
+            ]
+        )
     warnings = payload.get("warnings", [])
     if warnings:
         lines.extend(["", "Warnings:"])

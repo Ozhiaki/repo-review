@@ -1200,23 +1200,31 @@ delta_review:
                 )
             )
             self.assertEqual(attached["run"]["status"], "review_received")
-            self.assert_human_stdout(
+            bad_attach_run = self.review_run_record("bad-attach-run")
+            bad_attach_run["status"] = "prompt_ready"
+            bad_attach_run["repo"]["root"] = str(repo_root)
+            bad_attach_run["output_dir"] = str(output_dir)
+            with ledger.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(bad_attach_run, sort_keys=True) + "\n")
+            attached_invalid = self.assert_json_stdout(
                 self.run_cli(
                     "review",
                     "ingest",
                     "--repo",
                     str(repo_root),
                     "--run",
-                    "ingest-run",
+                    "bad-attach-run",
                     "--input",
-                    str(review_output),
+                    str(invalid_output),
                     "--attach-only",
-                    "--dry-run",
+                    "--json",
                     "--no-input",
-                ),
-                "Review ingest",
+                )
             )
+            self.assertEqual(attached_invalid["run"]["status"], "review_received")
+            self.assertEqual(attached_invalid["run"]["artifacts"]["review_artifact"], str(invalid_output.resolve()))
 
+            records_before_invalid = ledger.read_text(encoding="utf-8").splitlines()
             invalid = self.assert_json_stderr(
                 self.run_cli(
                     "review",
@@ -1232,6 +1240,23 @@ delta_review:
                 )
             )
             self.assertEqual(invalid["code"], "validation_failed")
+            self.assertEqual(ledger.read_text(encoding="utf-8").splitlines(), records_before_invalid)
+
+            human_invalid = self.assert_human_stderr(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "ingest-run",
+                    "--input",
+                    str(invalid_output),
+                    "--no-input",
+                ),
+                "Expected a delta_review block",
+            )
+            self.assertIn("review output has wrong artifact kind", human_invalid)
 
             ingested = self.assert_json_stdout(
                 self.run_cli(
@@ -1252,6 +1277,29 @@ delta_review:
             self.assertEqual(ingested["review_output"]["parser_mode"], "structured-markdown")
             self.assertEqual(ingested["candidate_claims"]["count"], 1)
             self.assertEqual(ingested["drift"]["count"], 1)
+            human_run = self.review_run_record("human-ingest-run")
+            human_run["status"] = "prompt_ready"
+            human_run["repo"]["root"] = str(repo_root)
+            human_run["output_dir"] = str(output_dir)
+            with ledger.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(human_run, sort_keys=True) + "\n")
+            human_ingested = self.assert_human_stdout(
+                self.run_cli(
+                    "review",
+                    "ingest",
+                    "--repo",
+                    str(repo_root),
+                    "--run",
+                    "human-ingest-run",
+                    "--input",
+                    str(review_output),
+                    "--no-input",
+                ),
+                "Review ingest",
+            )
+            self.assertIn("Parsed review output:", human_ingested)
+            self.assertIn("Candidate claims: 1", human_ingested)
+            self.assertIn("Drift entries: 1", human_ingested)
 
             prompt_run = self.review_run_record("prompt-run")
             prompt_run["status"] = "prompt_ready"
