@@ -451,6 +451,15 @@ pass_output:
             self.assertIn("created -> diff_ready -> impact_ready -> prompt_ready -> review_received -> ingested -> drift_ready -> complete", text)
             self.assertIn("deferred", text)
             self.assertIn("--json", text)
+        self.assertIn("schemas/delta_review_artifact.schema.json", readme)
+        self.assertIn("`--attach-only` records the reviewer file path", readme)
+        self.assertIn("Missing `delta_review`", readme)
+        self.assertIn("Wrong kind", readme)
+        self.assertIn("Malformed lists", readme)
+        self.assertIn("Attached but not ingested", readme)
+        self.assertIn("Before calling full `review ingest`", manifest)
+        self.assertIn("candidate_claims: []", manifest)
+        self.assertIn("kind: delta-review", manifest)
 
     def test_template_commands_list_get_and_write(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))

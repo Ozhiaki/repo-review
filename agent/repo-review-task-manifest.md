@@ -87,7 +87,10 @@ Returns the next actionable workflow step, required inputs, missing inputs, inte
 
 ### `repo-review ingest --input <path> --kind delta-review --json --no-input`
 
-Validates and records an external analyzer artifact in the local ingest ledger.
+Records an external analyzer artifact in the local ingest ledger. For
+`--kind delta-review`, low-level ingest uses the shared parser but remains
+lenient: malformed delta-review files are recorded with a thin
+`parse_summary.validation_errors` list instead of blocking the append.
 
 ### `repo-review delta --json --no-input`
 
@@ -158,6 +161,26 @@ Attaches reviewer output with `--attach-only` and moves the run to
 `review_received`, or validates a delta-review artifact and moves the run to
 `ingested`. Ingest output reports candidate-claim and drift counts, warnings,
 and next action. `--dry-run` reports intended changes without writing.
+
+Before calling full `review ingest`, agents should return a Markdown
+delta-review artifact with prose plus a structured YAML block:
+
+```yaml
+delta_review:
+  summary: "<brief result>"
+  candidate_claims: []
+  drift: []
+  warnings: []
+```
+
+`candidate_claims`, `drift`, and `warnings` are arrays. They may be empty, and
+entries may be concise prose strings when a richer object would be premature.
+JSON artifacts are also accepted when they are valid
+`schemas/delta_review_artifact.schema.json` objects with
+`kind: delta-review`. Full ingest rejects missing `delta_review`, wrong JSON
+kind, and malformed list fields before mutating the run ledger. `--attach-only`
+only verifies the file exists, so use it to preserve raw output that needs a
+repair pass before full ingest.
 
 ### `repo-review review finish --run <id> --json --no-input`
 

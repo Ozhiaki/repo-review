@@ -121,6 +121,44 @@ delta review artifact, attach or ingest it and finish when complete:
 ./repo-review review finish --run <run-id> --json --no-input
 ```
 
+`--attach-only` records the reviewer file path on the run and moves the run to
+`review_received`; it only requires the file to exist. Full ingest validates the
+artifact first, then moves the run to `ingested`. Use attach-only when you want
+to preserve exactly what came back before fixing or validating it. Use full
+ingest when the artifact is ready to become workflow state.
+
+A valid delta-review artifact is Markdown-first. The Markdown can contain prose,
+but it must include a structured `delta_review` YAML block. The equivalent JSON
+shape is documented in `schemas/delta_review_artifact.schema.json` and uses
+`kind: delta-review`. The required `delta_review` fields are `summary`,
+`candidate_claims`, `drift`, and `warnings`; the lists may be empty, and
+entries may be prose-thin strings or richer objects.
+
+Minimal Markdown example:
+
+```yaml
+delta_review:
+  summary: "No material drift found."
+  candidate_claims: []
+  drift: []
+  warnings: []
+```
+
+Minimal JSON example:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "delta-review",
+  "delta_review": {
+    "summary": "No material drift found.",
+    "candidate_claims": [],
+    "drift": [],
+    "warnings": []
+  }
+}
+```
+
 Low-level primitives remain available when you need to inspect or rebuild one
 artifact manually:
 
@@ -276,6 +314,21 @@ Claims, drift, and aggregation:
 Use `--json` for stable machine output. Mutating commands should use
 `--no-input` in automated contexts. In JSON mode, stdout is result data and
 stderr is reserved for JSON diagnostics.
+
+## Ingest Troubleshooting
+
+- Missing `delta_review`: full `review ingest` fails with
+  `code: validation_failed` and does not update `.repo-review/runs.jsonl`.
+  Use `--attach-only` if you need to preserve the raw file while repairing it.
+- Wrong kind: JSON artifacts must use `kind: delta-review`; unsupported
+  low-level ingest kinds are rejected. Markdown artifacts use the CLI `--kind`
+  value and still need the `delta_review` block for full workflow ingest.
+- Malformed lists: `candidate_claims`, `drift`, and `warnings` must be arrays.
+  Empty arrays are valid; scalar values such as `drift: none` are not.
+- Attached but not ingested: a run in `review_received` has a stored
+  `review_artifact` path, but the parsed counts have not been accepted. Re-run
+  `review ingest --run <id> --json --no-input` after fixing the file, or pass
+  `--input <path>` explicitly to replace the attached artifact.
 
 ## Common Tasks
 
