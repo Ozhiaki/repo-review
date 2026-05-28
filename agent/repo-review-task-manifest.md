@@ -4,6 +4,42 @@ This manifest is the first agent-readable workflow surface for repo-review. It i
 
 ## Commands
 
+<!-- repo-review-command-registry:start -->
+| Command | Role | Mutation | Dry run | Output schema | Flags | Outcomes | Examples |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `repo-review agent-context` | introspection | no | no | - | `--json` | - | `repo-review agent-context --json` |
+| `repo-review aggregate` | primitive | no | no | - | `--drift`, `--json`, `--limit`, `--no-input`, `--review-state` | - | - |
+| `repo-review claims` | primitive | yes | no | - | `--claim-status`, `--force`, `--impact-plan`, `--input`, `--json`, `--kind`, `--limit`, `--no-input`, `--overwrite-claims`, `--review-state`, `--subject` | `created`, `updated`, `existing`, `imported`, `replaced`, `unchanged`, `dry_run` | `repo-review claims list --review-state <path> --json --no-input` |
+| `repo-review delta` | primitive | no | no | - | `--diff-report`, `--impact-plan`, `--json`, `--no-input`, `--output`, `--review-state`, `--wait` | - | - |
+| `repo-review diff` | primitive | no | no | `schemas/diff_report.schema.json` | `--json`, `--limit`, `--no-input`, `--path`, `--range`, `--repo` | - | `repo-review diff --repo . --range HEAD~1..HEAD --json --no-input` |
+| `repo-review drift` | primitive | no | no | `schemas/delta_drift.schema.json` | `--diff-report`, `--impact-plan`, `--json`, `--no-input`, `--review-state`, `--to-review` | - | - |
+| `repo-review export-prompt` | primitive | yes | yes | - | `--deliver`, `--diff-report`, `--dry-run`, `--impact-plan`, `--json`, `--no-input`, `--output`, `--overwrite`, `--pass`, `--review-state` | `created`, `existing`, `updated`, `dry_run` | `repo-review export-prompt --pass delta-trace --review-state <path> --diff-report <path> --impact-plan <path> --output <path> --json --no-input` |
+| `repo-review feedback` | primitive | yes | no | - | `--json`, `--limit`, `--no-input`, `--output`, `--overwrite` | `created`, `unchanged` | `repo-review feedback "message" --json --no-input` |
+| `repo-review impact` | primitive | no | no | `schemas/impact_plan.schema.json` | `--diff-report`, `--json`, `--no-input`, `--review-state` | - | `repo-review impact --review-state <path> --diff-report <path> --json --no-input` |
+| `repo-review ingest` | primitive | yes | no | - | `--input`, `--json`, `--kind`, `--no-input` | `created` | `repo-review ingest --input <path> --kind delta-review --json --no-input` |
+| `repo-review next` | primitive | no | no | - | `--diff-report`, `--impact-plan`, `--json`, `--no-input`, `--output`, `--review-state` | - | - |
+| `repo-review profile` | primitive | yes | no | - | `--force`, `--json`, `--no-input` | `created`, `updated`, `existing`, `unchanged` | - |
+| `repo-review review` | workflow | yes | yes | `schemas/review_run.schema.json` | `--dry-run`, `--json`, `--mode`, `--new-run`, `--no-input`, `--output`, `--range`, `--repo`, `--review-state` | `created`, `existing`, `updated`, `dry_run` | `repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input` |
+| `repo-review review continue` | resume | yes | no | `schemas/review_run.schema.json` | `--apply`, `--json`, `--latest`, `--no-input`, `--run` | - | `repo-review review continue --latest --json --no-input` |
+| `repo-review review finish` | finish | yes | yes | `schemas/review_run.schema.json` | `--dry-run`, `--json`, `--latest`, `--no-input`, `--run` | `updated`, `unchanged`, `dry_run` | - |
+| `repo-review review ingest` | ingest | yes | yes | `schemas/review_run.schema.json` | `--attach-only`, `--dry-run`, `--input`, `--json`, `--kind`, `--latest`, `--no-input`, `--run` | `updated`, `dry_run` | - |
+| `repo-review review package` | artifact | yes | yes | `schemas/review_run.schema.json` | `--deliver`, `--dry-run`, `--json`, `--latest`, `--no-input`, `--output`, `--overwrite`, `--run` | `created`, `existing`, `updated`, `dry_run` | - |
+| `repo-review review start` | entrypoint | yes | yes | `schemas/review_run.schema.json` | `--dry-run`, `--json`, `--mode`, `--new-run`, `--no-input`, `--output`, `--range`, `--repo`, `--review-state` | `created`, `existing`, `updated`, `dry_run` | `repo-review review start --mode delta --repo . --range HEAD~1..HEAD --review-state latest --json --no-input` |
+| `repo-review review status` | status | no | no | `schemas/review_run.schema.json` | `--json`, `--latest`, `--no-input`, `--run` | - | - |
+| `repo-review runs` | runs | yes | yes | `schemas/review_run.schema.json` | `--dry-run`, `--force`, `--json`, `--limit`, `--no-input`, `--repo`, `--run` | `updated`, `unchanged`, `dry_run` | `repo-review runs list --repo . --json --no-input` |
+| `repo-review runs get` | runs | no | no | `schemas/review_run.schema.json` | `--json`, `--no-input`, `--repo`, `--run` | - | - |
+| `repo-review runs list` | runs | no | no | `schemas/review_run.schema.json` | `--json`, `--limit`, `--no-input`, `--repo` | - | - |
+| `repo-review runs prune` | runs | yes | yes | `schemas/review_run.schema.json` | `--dry-run`, `--force`, `--json`, `--no-input`, `--repo` | `updated`, `unchanged`, `dry_run` | - |
+| `repo-review skill-path` | introspection | no | no | - | `--json` | - | - |
+| `repo-review state` | primitive | yes | yes | `schemas/review_state.schema.json` | `--created-at`, `--dry-run`, `--json`, `--no-input`, `--output`, `--overwrite`, `--repo`, `--review-dir`, `--review-state-id`, `--source-analyzer-id`, `--source-kind`, `--source-model`, `--source-notes`, `--source-prompt-set-version`, `--source-tool-context` | `created`, `existing`, `replaced`, `dry_run` | `repo-review state bootstrap --repo <path> --review-dir <path> --output <path> --json --no-input` |
+| `repo-review state get` | state-discovery | no | no | - | `--json`, `--no-input`, `--review-state` | - | - |
+| `repo-review state latest` | state-discovery | no | no | - | `--json`, `--mode`, `--no-input`, `--repo` | - | - |
+| `repo-review state list` | state-discovery | no | no | - | `--json`, `--no-input`, `--repo` | - | - |
+| `repo-review state validate` | state-discovery | no | no | - | `--json`, `--no-input`, `--review-state` | - | - |
+| `repo-review status` | status | no | no | - | `--analyzer-id`, `--json`, `--lane-vocabulary`, `--output`, `--output-mode`, `--profile`, `--repo` | - | - |
+| `repo-review templates` | templates | yes | no | - | `--json`, `--no-input`, `--output`, `--overwrite` | `created`, `unchanged` | `repo-review templates list --json --no-input` |
+<!-- repo-review-command-registry:end -->
+
 ### `repo-review agent-context --json`
 
 Returns the shipped command registry, supported flags, enum values, delivery schemes, helper template paths, available profiles, manifest path, and vocabulary policy.

@@ -737,6 +737,18 @@ delta_review:
                 self.assertTrue(schema[name]["implemented"])
                 self.assertIn("flags", schema[name])
 
+    def test_marked_command_registry_docs_match_schema(self) -> None:
+        cli = self.load_cli_module()
+        expected = cli.render_command_registry_docs()
+        for path in [ROOT / "README.md", ROOT / "agent" / "repo-review-task-manifest.md"]:
+            with self.subTest(path=path):
+                text = path.read_text(encoding="utf-8")
+                marked = cli.extract_marked_command_registry(text)
+                self.assertIsNotNone(marked)
+                self.assertEqual(marked, expected)
+        command_names = {command["name"] for command in self.assert_json_stdout(self.run_cli("agent-context", "--json"))["commands"]}
+        self.assertNotIn("docs", command_names)
+
     def test_review_run_schema_and_migration_helpers(self) -> None:
         self.assertTrue((ROOT / "schemas/review_run.schema.json").is_file())
         cli = self.load_cli_module()

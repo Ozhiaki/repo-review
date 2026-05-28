@@ -569,6 +569,8 @@ def implemented_commands(schema: dict[str, dict[str, Any]]) -> dict[str, dict[st
 
 
 COMMANDS: dict[str, dict[str, Any]] = implemented_commands(COMMAND_SCHEMA)
+COMMAND_REGISTRY_START = "<!-- repo-review-command-registry:start -->"
+COMMAND_REGISTRY_END = "<!-- repo-review-command-registry:end -->"
 
 
 VOCABULARY_POLICY = {
@@ -1111,6 +1113,40 @@ def agent_context() -> dict[str, Any]:
         "skill_manifest_path": str(MANIFEST_PATH.relative_to(ROOT)),
         "vocabulary_policy": VOCABULARY_POLICY,
     }
+
+
+def render_command_registry_docs() -> str:
+    lines = [
+        COMMAND_REGISTRY_START,
+        "| Command | Role | Mutation | Dry run | Output schema | Flags | Outcomes | Examples |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for name, entry in sorted(COMMAND_SCHEMA.items()):
+        flags = ", ".join(f"`{flag}`" for flag in sorted(entry["flags"])) or "-"
+        outcomes = ", ".join(f"`{outcome}`" for outcome in entry["allowed_mutation_outcomes"]) or "-"
+        examples = "<br>".join(f"`{example}`" for example in entry["examples"]) or "-"
+        output_schema = f"`{entry['output_schema']}`" if entry["output_schema"] else "-"
+        lines.append(
+            "| "
+            f"`repo-review {name}` | "
+            f"{entry['workflow_role']} | "
+            f"{'yes' if entry['mutation'] else 'no'} | "
+            f"{'yes' if entry['dry_run'] else 'no'} | "
+            f"{output_schema} | "
+            f"{flags} | "
+            f"{outcomes} | "
+            f"{examples} |"
+        )
+    lines.append(COMMAND_REGISTRY_END)
+    return "\n".join(lines)
+
+
+def extract_marked_command_registry(text: str) -> str | None:
+    start = text.find(COMMAND_REGISTRY_START)
+    end = text.find(COMMAND_REGISTRY_END)
+    if start == -1 or end == -1 or end < start:
+        return None
+    return text[start : end + len(COMMAND_REGISTRY_END)]
 
 
 def skill_path() -> dict[str, Any]:
