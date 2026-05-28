@@ -1364,7 +1364,8 @@ delta_review:
             "claims": {"created", "updated", "existing", "imported", "replaced", "unchanged", "dry_run"},
             "review start": {"created", "existing", "updated", "dry_run"},
             "review package": {"created", "existing", "updated", "dry_run"},
-            "review ingest": {"created", "updated", "existing", "imported", "unchanged", "dry_run"},
+            "ingest": {"created"},
+            "review ingest": {"updated", "dry_run"},
             "review finish": {"updated", "unchanged", "dry_run"},
             "runs prune": {"updated", "unchanged", "dry_run"},
         }
@@ -1683,6 +1684,7 @@ delta_review:
         )
         ingest_payload = self.assert_json_stdout(ingest)
         self.assertIn("entry_id", ingest_payload)
+        self.assertEqual(ingest_payload["mutation_outcome"], "created")
         self.assertTrue(Path(ingest_payload["path"]).is_file())
 
         delta = self.run_cli("delta", "--json", "--no-input")

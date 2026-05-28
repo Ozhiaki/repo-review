@@ -481,7 +481,7 @@ COMMAND_SCHEMA: dict[str, dict[str, Any]] = {
             workflow_role="ingest",
             mutation=True,
             dry_run=True,
-            allowed_mutation_outcomes=["created", "updated", "existing", "imported", "unchanged", "dry_run"],
+            allowed_mutation_outcomes=["updated", "dry_run"],
             artifact_schemas=["delta-review"],
             flag_overrides={"--kind": {"type": "enum", "values": ["delta-review"]}},
         )
@@ -3224,7 +3224,7 @@ def ingest_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]
     }
     with INGEST_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
-    return 0, {"schema_version": SCHEMA_VERSION, "entry_id": entry_id, "path": str(INGEST_PATH), "record": entry}
+    return 0, {"schema_version": SCHEMA_VERSION, "mutation_outcome": "created", "entry_id": entry_id, "path": str(INGEST_PATH), "record": entry}
 
 
 def delta_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
