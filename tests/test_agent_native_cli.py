@@ -439,6 +439,7 @@ pass_output:
             "repo-review review continue",
             "repo-review review ingest",
             "repo-review review finish",
+            "repo-review review status",
             "repo-review templates list",
             "repo-review templates get",
             "repo-review templates write",
@@ -1417,6 +1418,16 @@ delta_review:
             )
             self.assertEqual(finished["mutation_outcome"], "updated")
             self.assertEqual(finished["run"]["status"], "complete")
+            status = self.assert_json_stdout(
+                self.run_cli("review", "status", "--repo", str(repo_root), "--run", "ingest-run", "--json", "--no-input")
+            )
+            self.assertEqual(status["action"], "status")
+            self.assertEqual(status["run"]["status"], "complete")
+            self.assertEqual(status["run"]["run_id"], "ingest-run")
+            self.assert_human_stdout(
+                self.run_cli("review", "status", "--repo", str(repo_root), "--run", "ingest-run", "--no-input"),
+                "Review status",
+            )
             self.assert_human_stdout(
                 self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--dry-run", "--no-input"),
                 "Review finish",
@@ -1444,6 +1455,9 @@ delta_review:
         self.assertIn("recovery hint", transitions[("*", "failed")])
         self.assertIsNone(review_run["statuses"]["blocked"]["recommended_command"])
         self.assertIsNone(review_run["statuses"]["failed"]["recommended_command"])
+        missing_status = self.assert_json_stderr(self.run_cli("review", "status", "--run", "missing-run", "--json", "--no-input"))
+        self.assertEqual(missing_status["code"], "resource_not_found")
+        self.assertNotIn("unknown review subcommand", missing_status["message"])
 
     def test_mutation_outcome_contracts_are_recorded_per_command(self) -> None:
         payload = self.assert_json_stdout(self.run_cli("agent-context", "--json"))

@@ -633,7 +633,7 @@ def human_output_supported(command: str, positionals: list[str]) -> bool:
         return True
     if command == "runs" and positionals[:1] in (["list"], ["get"], ["prune"]):
         return True
-    if command == "review" and positionals[:1] in (["start"], ["package"], ["continue"], ["ingest"], ["finish"]):
+    if command == "review" and positionals[:1] in (["start"], ["package"], ["continue"], ["ingest"], ["finish"], ["status"]):
         return True
     if command == "state" and positionals[:1] in (["bootstrap"], ["list"], ["latest"], ["get"], ["validate"]):
         return True
@@ -858,6 +858,7 @@ def human_review(payload: dict[str, Any]) -> list[str]:
         "continue": "Review continue",
         "ingest": "Review ingest",
         "finish": "Review finish",
+        "status": "Review status",
         "start": "Review start",
     }.get(payload.get("action"), "Review")
     lines = [
@@ -3248,9 +3249,24 @@ def review_finish_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     }
 
 
+def review_status_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+    run, repo_root, errors = resolve_review_run(options)
+    assert repo_root is not None
+    if errors:
+        return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
+    assert run is not None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "status",
+        "run": run,
+        "warnings": run.get("warnings", []),
+        "next_action": review_run_next_action(run.get("status")),
+    }
+
+
 def review_command(positionals: list[str], options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     if not positionals:
-        return fail("missing review subcommand", "Use one of: start, package, continue, ingest, finish.", valid_values=["start", "package", "continue", "ingest", "finish"]), None
+        return fail("missing review subcommand", "Use one of: start, package, continue, ingest, finish, status.", valid_values=["start", "package", "continue", "ingest", "finish", "status"]), None
     subcommand = positionals[0]
     if subcommand == "package":
         return review_package_command(options)
@@ -3260,8 +3276,10 @@ def review_command(positionals: list[str], options: dict[str, Any]) -> tuple[int
         return review_ingest_command(options)
     if subcommand == "finish":
         return review_finish_command(options)
+    if subcommand == "status":
+        return review_status_command(options)
     if subcommand != "start":
-        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start, package, continue, ingest, finish.", valid_values=["start", "package", "continue", "ingest", "finish"]), None
+        return fail(f"unknown review subcommand '{subcommand}'", "Use one of: start, package, continue, ingest, finish, status.", valid_values=["start", "package", "continue", "ingest", "finish", "status"]), None
     mode = options.get("mode")
     if mode != "delta":
         return fail("unsupported or missing --mode", "Only review start --mode delta is implemented in this CLI slice.", valid_values=["delta"]), None
