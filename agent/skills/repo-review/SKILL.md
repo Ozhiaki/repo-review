@@ -52,6 +52,8 @@ presenting command transcripts unless the user asks for operational detail.
   and workflow command preferences.
 - `references/artifact-contracts.md`: required review-state, run, and
   `delta_review` artifact contracts.
+- `references/discovery-trials.md`: first discovery-trial results and feedback
+  conversion notes.
 
 Keep this file short. Put detailed workflow instructions in references and keep
 the skill body provider-neutral unless a concrete runtime adapter is required.

@@ -1,0 +1,139 @@
+{
+  "diff_range": "77b7bd3..HEAD",
+  "from_review": "repo-review-calibration-2026-05-25",
+  "impacted_claims": [
+    {
+      "claim_id": "discounted_artifact.incremental_substrate",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    },
+    {
+      "claim_id": "first_read.central_abstraction",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    },
+    {
+      "claim_id": "lift.delta_as_finding",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    },
+    {
+      "claim_id": "trace.staged_blindness_obligation",
+      "impact": "unknown",
+      "reason": "Claim surfaced by path_hit.",
+      "required_followup_passes": [
+        "trace"
+      ],
+      "surfaced_by": [
+        "path_hit"
+      ]
+    }
+  ],
+  "path_hits": [
+    {
+      "claim_id": "first_read.central_abstraction",
+      "matched_paths": [
+        "README.md"
+      ]
+    },
+    {
+      "claim_id": "discounted_artifact.incremental_substrate",
+      "matched_paths": [
+        "docs/incremental-review.md",
+        "schemas/candidate_claim.schema.json",
+        "schemas/common.schema.json",
+        "schemas/delta_review_artifact.schema.json",
+        "schemas/review_run.schema.json"
+      ]
+    },
+    {
+      "claim_id": "trace.staged_blindness_obligation",
+      "matched_paths": [
+        "README.md",
+        "agent/repo-review-task-manifest.md",
+        "agent/skills/repo-review/SKILL.md",
+        "agent/skills/repo-review/references/artifact-contracts.md",
+        "agent/skills/repo-review/references/command-selection.md",
+        "agent/skills/repo-review/references/update.md",
+        "docs/extractable-patterns.md",
+        "docs/incremental-review.md",
+        "repo-review",
+        "reviews/oathweaver/delta-2026-05-25/delta-review.md",
+        "reviews/oathweaver/delta-2026-05-25/delta-trace-prompt.md",
+        "reviews/oathweaver/delta-2026-05-25/friction-notes.md",
+        "reviews/repo-review/calibration-2026-05-25/calibration-notes.md",
+        "reviews/repo-review/calibration-2026-05-25/review.md",
+        "templates/affected-claims.md",
+        "templates/bootstrap-candidate-claims.md",
+        "templates/contested-claim.md",
+        "templates/drift-summary.md",
+        "templates/invalidation-trigger.md",
+        "templates/lift-seed.md",
+        "templates/trace-obligation.md",
+        "templates/twin-selection.md",
+        "tests/fixtures/README.md",
+        "tests/test_agent_native_cli.py"
+      ]
+    },
+    {
+      "claim_id": "lift.delta_as_finding",
+      "matched_paths": [
+        "docs/incremental-review.md"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "to_repo_commit": "HEAD",
+  "trigger_hits": [],
+  "unaffected_claims": [],
+  "unknowns": [
+    {
+      "changed_file": ".beads/issues.jsonl",
+      "classification": "core-logic",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    },
+    {
+      "changed_file": "reviews/oathweaver/delta-2026-05-25/delta-drift.json",
+      "classification": "new-subsystem",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    },
+    {
+      "changed_file": "reviews/oathweaver/delta-2026-05-25/diff-report.json",
+      "classification": "new-subsystem",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    },
+    {
+      "changed_file": "reviews/oathweaver/delta-2026-05-25/impact-plan.json",
+      "classification": "new-subsystem",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    },
+    {
+      "changed_file": "reviews/oathweaver/delta-2026-05-25/prior-review-state.json",
+      "classification": "new-subsystem",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    },
+    {
+      "changed_file": "reviews/repo-review/calibration-2026-05-25/review-state.json",
+      "classification": "new-subsystem",
+      "reason": "No claim watch_path matched this changed file; semantic trigger evaluation may still be needed."
+    }
+  ]
+}
