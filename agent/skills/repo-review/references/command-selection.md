@@ -91,6 +91,23 @@ path. If a run is already `review_received` or `ingested`, use `review continue`
 to determine whether the next resume instruction should be ingest, drift
 surfacing, finish, or a human decision.
 
+When a CLI response includes both a concrete `run.run_id` and a
+`next_action.recommended_command` containing `<run-id>`, substitute the concrete
+run id before presenting the command to the user. Record feedback only if the
+response lacks the machine-readable run id or the substitution would be
+ambiguous.
+
+Discovery feedback converted into CLI work:
+
+- `feedback-2026-05-29T124043480044Z0000` -> `rep-g7b.9`
+- `feedback-2026-05-29T124217817051Z0000` -> `rep-g7b.10`
+- `feedback-2026-05-29T124341923162Z0000` -> `rep-g7b.11`
+
+Discovery feedback handled by skill instructions:
+
+- `feedback-2026-05-29T124140712286Z0000`: non-blocking `<run-id>`
+  placeholder in a recommended command where `run.run_id` is available.
+
 ## Error Shape
 
 A compatibility refusal should be short and actionable:
