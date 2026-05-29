@@ -51,18 +51,25 @@ decision. Do not list all possible workflow commands as the default response.
 ## Boundary Model
 
 Update boundaries are provenance-based. Do not accept arbitrary calendar windows
-such as "last 90 days" as the update range.
+such as "last 90 days" as the update range. If the user asks for a calendar
+window, redirect to the provenance model and explain that repo-review updates
+the prior analysis to the current repository state.
 
-The expected boundary order is:
+Resolve the baseline in this order:
 
-1. Git commit recorded with the latest review state or base analytical output.
-2. Last modified time of the relevant base analytical output as a legacy
-   fallback, mapped to a defensible Git baseline.
-3. A user-provided baseline commit, requested only when neither prior source is
-   available.
+1. Use a Git commit identifier recorded with the latest review state or base
+   analytical output.
+2. If no commit identifier exists, use the last modified time of the relevant
+   base analytical output as a legacy fallback, mapped to a defensible Git
+   baseline.
+3. If neither source is available, block and ask the user for a baseline commit.
 
 The target revision is normally `HEAD` unless the user explicitly names a
 current target revision.
+
+When baseline discovery is ambiguous because the CLI does not expose provenance
+or base-output selection clearly enough, record the friction with
+`repo-review feedback` during discovery instead of guessing silently.
 
 ## Modes
 

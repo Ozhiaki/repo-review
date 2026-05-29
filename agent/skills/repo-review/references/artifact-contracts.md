@@ -13,6 +13,10 @@ For update work, the baseline should come from commit provenance recorded with
 the latest review state or base analytical output. Legacy prose-only outputs may
 fall back to file modified time only when no commit provenance exists.
 
+If no defensible baseline can be inferred from commit provenance or analytical
+output modified time, the skill must block and ask for a baseline commit. It
+must not synthesize a calendar-window range as a substitute.
+
 ## Review Runs
 
 Durable runs are the workflow record for delta updates. The CLI's
