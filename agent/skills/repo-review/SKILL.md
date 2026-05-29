@@ -10,7 +10,7 @@ without exposing the CLI's primitive workflow steps as the normal interface.
 
 The first task surface is `/repo-review:update`. It revises prior review state
 and prior analytical output against current repository evidence. It is not a
-fresh full review.
+fresh full review, and it does not replace the base prompt sequence.
 
 ## Required First Step
 
@@ -34,8 +34,15 @@ with hand-written command recipes.
   to the current target revision.
 - Natural-language fallback: handle requests such as "Use repo-review update to
   refresh my latest analysis" when slash-family task syntax is unavailable.
+- Summary-oriented requests such as "which prior claims still hold?" are update
+  intent when a usable prior review state exists.
 - Future sibling surfaces, likely `/repo-review:ingest` and
   `/repo-review:continue`, are reserved for resumable update flows.
+
+For update requests, final responses should name the baseline and target
+revision when known, then report changed opinions, new candidate claims or
+risks, warnings, unresolved judgment calls, and durable artifact paths. Avoid
+presenting command transcripts unless the user asks for operational detail.
 
 ## References
 

@@ -8,6 +8,9 @@ It does not replace the base prompt suite. The base prompts remain responsible
 for the first comprehensive review. Update work amortizes that analysis across
 later repository changes.
 
+Do not treat update as "run all review prompts again." The skill should preserve
+the distinction between base review outputs and delta review outputs.
+
 ## Invocation
 
 Prefer explicit task syntax when the runtime supports it:
@@ -25,6 +28,25 @@ Summarize which prior claims still hold after the latest changes.
 
 Ask a concise clarification only when the target repository, latest review
 state, or baseline provenance cannot be inferred safely.
+
+## User-Facing Contract
+
+The user should experience update as a compact analytical request, not as a CLI
+recipe. Translate intent into workflow commands after capability discovery, then
+return the analytical result and durable artifact locations.
+
+When closed-loop analysis completes, final responses should include:
+
+- baseline and target revision reviewed, when known
+- prior claims or opinions that strengthened, weakened, invalidated, became
+  contested, or stayed materially unchanged
+- new candidate claims or risks
+- warnings and unresolved judgment calls
+- durable artifacts created or updated
+- next recommended action, if any
+
+When update cannot continue without a clarification, ask for only the missing
+decision. Do not list all possible workflow commands as the default response.
 
 ## Boundary Model
 
