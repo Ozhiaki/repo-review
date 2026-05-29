@@ -1205,6 +1205,18 @@ delta_review:
             output_dir.mkdir(parents=True)
             review_output = output_dir / "review.md"
             invalid_output = output_dir / "invalid.md"
+            review_state_path = output_dir / "review-state.json"
+            diff_path = output_dir / "diff-report.json"
+            impact_path = output_dir / "impact-plan.json"
+            review_state_path.write_text(json.dumps(self.review_state_record(repo_root, "fixture-full"), sort_keys=True), encoding="utf-8")
+            diff_path.write_text(
+                json.dumps({"schema_version": 1, "range": {"expression": "HEAD~1..HEAD"}, "changed_files": []}, sort_keys=True),
+                encoding="utf-8",
+            )
+            impact_path.write_text(
+                json.dumps({"schema_version": 1, "from_review": "fixture-full", "impacted_claims": [], "unknowns": []}, sort_keys=True),
+                encoding="utf-8",
+            )
             review_output.write_text(
                 """Prompt vocabulary outside the structured block should not count:
 subject_drift analysis_drift candidate_claim drift.
@@ -1227,6 +1239,9 @@ delta_review:
             run["status"] = "prompt_ready"
             run["repo"]["root"] = str(repo_root)
             run["output_dir"] = str(output_dir)
+            run["prior_review_state"] = str(review_state_path)
+            run["artifacts"]["diff_report"] = str(diff_path)
+            run["artifacts"]["impact_plan"] = str(impact_path)
             ledger = repo_root / ".repo-review" / "runs.jsonl"
             ledger.parent.mkdir(parents=True)
             ledger.write_text(json.dumps(run, sort_keys=True) + "\n", encoding="utf-8")
@@ -1381,7 +1396,21 @@ delta_review:
                 self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--dry-run", "--json", "--no-input")
             )
             self.assertEqual(finish_dry_run["mutation_outcome"], "dry_run")
-            self.assertTrue(finish_dry_run["finishable"])
+            self.assertFalse(finish_dry_run["finishable"])
+
+            finish_before_drift = self.assert_json_stderr(
+                self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--json", "--no-input")
+            )
+            self.assertEqual(finish_before_drift["code"], "unsafe_mutation_refused")
+
+            drifted = self.assert_json_stdout(
+                self.run_cli("review", "continue", "--repo", str(repo_root), "--run", "ingest-run", "--apply", "--json", "--no-input")
+            )
+            self.assertEqual(drifted["action"], "drift")
+            self.assertEqual(drifted["mutation_outcome"], "updated")
+            self.assertEqual(drifted["run"]["status"], "drift_ready")
+            drift_surface = Path(drifted["run"]["artifacts"]["drift_surface"])
+            self.assertTrue(drift_surface.is_file())
 
             finished = self.assert_json_stdout(
                 self.run_cli("review", "finish", "--repo", str(repo_root), "--run", "ingest-run", "--json", "--no-input")

@@ -58,8 +58,8 @@ REVIEW_RUN_STATUS_CONTRACTS = {
     },
     "ingested": {
         "meaning": "Reviewer output has been ingested.",
-        "next_action": "Surface drift or summarize imported results.",
-        "recommended_command": "repo-review drift surface --review-state <path> --diff-report <path> --impact-plan <path> --json --no-input",
+        "next_action": "Surface drift and bind the artifact to the run.",
+        "recommended_command": "repo-review review continue --run <run-id> --apply --json --no-input",
     },
     "drift_ready": {
         "meaning": "Drift surface exists.",
@@ -89,7 +89,7 @@ REVIEW_RUN_TRANSITIONS = [
     {"from": "impact_ready", "to": "prompt_ready", "producer": "review start internal step, review package, or export-prompt once run binding exists"},
     {"from": "prompt_ready", "to": "review_received", "producer": "review ingest --attach-only or equivalent future attach behavior"},
     {"from": "review_received", "to": "ingested", "producer": "review ingest"},
-    {"from": "ingested", "to": "drift_ready", "producer": "drift surface once run binding exists"},
+    {"from": "ingested", "to": "drift_ready", "producer": "review continue --apply drift surface"},
     {"from": "drift_ready", "to": "complete", "producer": "review finish"},
     {"from": "*", "to": "blocked", "producer": "any command that reaches a human-decision point or missing required input"},
     {"from": "*", "to": "failed", "producer": "any command after recording a durable failure and recovery hint"},
@@ -3012,6 +3012,45 @@ def review_package_command(options: dict[str, Any]) -> tuple[int, dict[str, Any]
     }
 
 
+def review_surface_drift_command(run: dict[str, Any], repo_root: Path) -> tuple[int, dict[str, Any] | None]:
+    artifacts = dict(run.get("artifacts") or {})
+    output_dir = Path(run.get("output_dir") or repo_root).expanduser().resolve()
+    drift_path = output_dir / "delta-drift.json"
+    code, drift_surface = drift_command(
+        ["surface"],
+        {
+            "review_state": run.get("prior_review_state"),
+            "diff_report": artifacts.get("diff_report"),
+            "impact_plan": artifacts.get("impact_plan"),
+            "to_review": run.get("run_id"),
+        },
+    )
+    if code != 0:
+        return code, None
+    assert drift_surface is not None
+    output_dir.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(drift_path, drift_surface)
+    updated_artifacts = {**artifacts, "drift_surface": str(drift_path)}
+    updated, update_errors = update_review_run_record(
+        repo_root,
+        run["run_id"],
+        {"status": "drift_ready", "artifacts": updated_artifacts},
+    )
+    if update_errors:
+        return fail("run record is invalid", "; ".join(update_errors), code=3, error_code="validation_failed"), None
+    assert updated is not None
+    return 0, {
+        "schema_version": SCHEMA_VERSION,
+        "action": "drift",
+        "mutation_outcome": "updated",
+        "run": updated,
+        "artifacts": updated_artifacts,
+        "drift_surface": str(drift_path),
+        "warnings": [],
+        "next_action": review_run_next_action("drift_ready"),
+    }
+
+
 def review_continue_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
     run, repo_root, errors = resolve_review_run(options)
     assert repo_root is not None
@@ -3023,6 +3062,8 @@ def review_continue_command(options: dict[str, Any]) -> tuple[int, dict[str, Any
         if run.get("status") == "impact_ready":
             package_options = {**options, "run": run["run_id"]}
             return review_package_command(package_options)
+        if run.get("status") == "ingested":
+            return review_surface_drift_command(run, repo_root)
         return 0, {
             "schema_version": SCHEMA_VERSION,
             "action": "continue",
@@ -3171,7 +3212,7 @@ def review_finish_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
     if errors:
         return fail("review run was not found", errors[0], code=4, error_code="resource_not_found", valid_values=["--run", "--latest"]), None
     assert run is not None
-    finishable = run.get("status") in {"ingested", "drift_ready"}
+    finishable = run.get("status") == "drift_ready"
     if options.get("dry_run"):
         return 0, {
             "schema_version": SCHEMA_VERSION,
@@ -3180,16 +3221,16 @@ def review_finish_command(options: dict[str, Any]) -> tuple[int, dict[str, Any] 
             "mutation_outcome": "dry_run",
             "finishable": finishable,
             "run": {**run, "status": "complete"} if finishable else run,
-            "warnings": [] if finishable else ["Run is not finishable until reviewer output is ingested."],
+            "warnings": [] if finishable else ["Run is not finishable until drift has been surfaced and bound to the run."],
             "next_action": review_run_next_action("complete" if finishable else run.get("status")),
         }
     if not finishable:
         return fail(
             "run is not finishable",
-            "Ingest reviewer output before finishing the run.",
+            "Run review continue --run <id> --apply to surface drift before finishing the run.",
             code=5,
             error_code="unsafe_mutation_refused",
-            valid_values=["review ingest"],
+            valid_values=["review continue --apply"],
         ), None
     updated, update_errors = update_review_run_record(repo_root, run["run_id"], {"status": "complete"})
     if update_errors:
