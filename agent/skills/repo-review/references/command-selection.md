@@ -44,3 +44,54 @@ missing capability and state that the installed skill and CLI are out of sync.
 
 Do not continue by assembling undocumented command recipes. That risks mutating
 review state with contracts the installed CLI does not guarantee.
+
+## Required Update Capabilities
+
+For `/repo-review:update`, require these capabilities in `agent-context` before
+starting the workflow:
+
+- state discovery: `state latest`, `state list`, `state get`, or equivalent
+  review-state resolution commands with `--json` and `--no-input`
+- run creation or reuse: `review start` with `--mode`, `--repo`, `--range`,
+  `--review-state`, `--json`, and `--no-input`
+- run resumption: `review continue` with `--run` or `--latest`, `--json`, and
+  `--no-input`
+- prompt packaging: `review package` or an equivalent workflow-supported
+  packaging command with file or stdout delivery metadata
+- reviewer ingest: `review ingest` with `--run` or `--latest`, `--input`,
+  `--json`, `--no-input`, and attach-only support for raw reviewer output
+- run finish: `review finish` with `--run` or `--latest`, `--json`, and
+  `--no-input`
+- drift surfacing: a workflow transition or `drift surface` command that can
+  produce `schemas/delta_drift.schema.json`
+- local feedback: `feedback` with `--json` and `--no-input` so discovery
+  friction can be recorded
+
+Also require the CLI-declared `delta-review` artifact schema, including a
+Markdown primary format with a required `delta_review` block or an equivalent
+JSON schema contract.
+
+## Required Statuses
+
+For durable update runs, require status meanings for:
+
+- `prompt_ready`
+- `review_received`
+- `ingested`
+- `drift_ready`
+- `complete`
+- `blocked`
+- `failed`
+
+The skill may also use earlier setup statuses such as `created`, `diff_ready`,
+and `impact_ready` when the CLI reports them.
+
+## Error Shape
+
+A compatibility refusal should be short and actionable:
+
+```text
+repo-review compatibility error: missing <capability>. This skill expects a CLI
+that exposes <required command/flag/schema/status> through
+`repo-review agent-context --json`; update the skill or CLI so they match.
+```

@@ -21,6 +21,7 @@ must not synthesize a calendar-window range as a substitute.
 
 Durable runs are the workflow record for delta updates. The CLI's
 `agent-context` response defines the supported statuses and transitions.
+Read that response before interpreting a status or assuming a transition exists.
 
 The expected delta flow is:
 
