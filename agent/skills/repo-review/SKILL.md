@@ -38,6 +38,7 @@ with hand-written command recipes.
   intent when a usable prior review state exists.
 - Future sibling surfaces, likely `/repo-review:ingest` and
   `/repo-review:continue`, are reserved for resumable update flows.
+  The first implementation may handle those flows inside this skill body.
 
 For update requests, final responses should name the baseline and target
 revision when known, then report changed opinions, new candidate claims or

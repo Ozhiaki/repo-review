@@ -86,6 +86,11 @@ For durable update runs, require status meanings for:
 The skill may also use earlier setup statuses such as `created`, `diff_ready`,
 and `impact_ready` when the CLI reports them.
 
+Fallback handoffs should prefer a run in `prompt_ready` with a concrete packet
+path. If a run is already `review_received` or `ingested`, use `review continue`
+to determine whether the next resume instruction should be ingest, drift
+surfacing, finish, or a human decision.
+
 ## Error Shape
 
 A compatibility refusal should be short and actionable:

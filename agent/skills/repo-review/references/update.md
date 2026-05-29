@@ -102,3 +102,25 @@ Use resumable fallback when closed-loop analysis is not responsible. Fallback
 must still create or reuse a durable run, package the reviewer prompt, and
 return a resumable handoff with the run identity, packet path, reason for
 fallback, and next resume instruction.
+
+Fallback sequence:
+
+1. Resolve as much of the target repository, review state, baseline, and target
+   revision as is safe.
+2. Create or reuse a durable update run before handing off.
+3. Package or locate the reviewer prompt packet for that run.
+4. Return a handoff that includes:
+   - why closed-loop analysis did not complete
+   - baseline and target revision, if resolved
+   - reviewer packet path
+   - run identifier or run artifact path
+   - exact resume instruction, such as
+     `/repo-review:ingest <reviewer-output>` or `/repo-review:continue`
+
+Fallback is durable orchestration. Do not tell the user to "go run this prompt"
+without first preserving run state and the reviewer packet path.
+
+Reserve `/repo-review:ingest` and `/repo-review:continue` as future sibling task
+surfaces. The first implementation may keep those flows inside the same skill
+body until a concrete runtime or usability need justifies separate physical
+skills.
