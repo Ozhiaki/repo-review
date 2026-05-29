@@ -74,9 +74,29 @@ or base-output selection clearly enough, record the friction with
 ## Modes
 
 Default to closed-loop delta analysis when the current agent can responsibly
-perform the analysis. The agent should resolve state and provenance, inspect the
-Git delta, identify affected prior claims, write a valid `delta_review`, ingest
-it, surface drift, finish the run, and report durable artifact paths.
+perform the analysis.
+
+Closed-loop sequence:
+
+1. Resolve the target repository.
+2. Resolve the latest usable review state and baseline provenance.
+3. Start or reuse a durable delta run through the CLI. Let the CLI decide
+   whether an existing run matches; do not implement skill-side duplicate
+   detection.
+4. Inspect Git-derived evidence between the baseline and target revision. Use
+   the CLI-produced diff report when available, and inspect source files deeply
+   enough to understand affected behavior.
+5. Identify prior claims or prior analytical opinions implicated by the changed
+   files, watch paths, invalidation triggers, or impact plan.
+6. Analyze changed areas deeply enough to revise the prior judgment. Preserve
+   the distinction between subject drift and analysis drift when the evidence
+   supports it.
+7. Produce a valid `delta_review` artifact with `summary`, `candidate_claims`,
+   `drift`, and `warnings`.
+8. Ingest the artifact through the workflow ingest path.
+9. Surface drift and finish the run when the CLI reports it is finishable.
+10. Report changed opinions, new candidate claims, warnings, unresolved
+    judgment calls, and durable artifact paths.
 
 Use resumable fallback when closed-loop analysis is not responsible. Fallback
 must still create or reuse a durable run, package the reviewer prompt, and

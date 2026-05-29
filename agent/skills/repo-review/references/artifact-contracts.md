@@ -37,6 +37,10 @@ progress, or `failed` when the CLI records a durable failure and recovery hint.
 Full ingest requires a delta review artifact. Markdown is the primary format,
 and it must contain a structured YAML block named `delta_review`.
 
+Closed-loop update may write this artifact directly when the current agent is
+capable of the delta analysis. The artifact must be good enough for full
+workflow ingest, not merely prose attached to a run.
+
 Minimal valid Markdown:
 
 ```yaml
