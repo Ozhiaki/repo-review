@@ -1870,6 +1870,53 @@ delta_review:
             self.assertEqual(refused.returncode, 5)
             self.assertIn("--overwrite", diagnostic["valid_values"])
 
+    def test_state_bootstrap_reports_duplicate_pass_id_ambiguity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            review_dir = tmp_path / "legacy"
+            output_path = tmp_path / "review-state.json"
+            self.write_legacy_reviews(review_dir)
+            (review_dir / "01-first-read-second.md").write_text(
+                """# First Read Second
+
+Legacy prose from another file.
+
+```yaml
+pass_output:
+  pass_id: first-read
+  repo: fixture
+  analyzed_at: 2026-05-14T00:00:00-04:00
+```
+""",
+                encoding="utf-8",
+            )
+
+            payload = self.assert_json_stdout(
+                self.run_cli(
+                    "state",
+                    "bootstrap",
+                    "--repo",
+                    str(ROOT),
+                    "--review-dir",
+                    str(review_dir),
+                    "--output",
+                    str(output_path),
+                    "--dry-run",
+                    "--json",
+                    "--no-input",
+                )
+            )
+
+            self.assertEqual(payload["pass_outputs"], 3)
+            duplicate = [item for item in payload["ambiguities"] if item["kind"] == "duplicate_pass_id"]
+            self.assertEqual(len(duplicate), 1)
+            self.assertEqual(duplicate[0]["pass_id"], "first-read")
+            self.assertEqual(len(duplicate[0]["files"]), 2)
+            self.assertTrue(any("Multiple discovered files resolve to pass_id" in warning for warning in payload["warnings"]))
+            duplicate_items = [item for item in payload["discovered_files"] if item["pass_id"] == "first-read"]
+            self.assertEqual(len(duplicate_items), 2)
+            self.assertTrue(all(any("explicit output selection" in warning for warning in item["warnings"]) for item in duplicate_items))
+
     def test_state_bootstrap_unknown_source_identity(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

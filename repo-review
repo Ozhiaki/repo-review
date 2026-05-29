@@ -1646,12 +1646,13 @@ def relative_to_state(path: Path, state_path: Path) -> str:
         return str(path.resolve())
 
 
-def discover_review_artifacts(review_dir: Path, output_path: Path) -> tuple[list[dict[str, Any]], list[str], int | None]:
+def discover_review_artifacts(review_dir: Path, output_path: Path) -> tuple[list[dict[str, Any]], list[str], int | None, list[dict[str, Any]]]:
     discovered: list[dict[str, Any]] = []
     warnings: list[str] = []
+    ambiguities: list[dict[str, Any]] = []
     mtimes: list[int] = []
     if not review_dir.is_dir():
-        return discovered, [f"Review directory was not found: {review_dir}"], None
+        return discovered, [f"Review directory was not found: {review_dir}"], None, ambiguities
     for path in sorted(review_dir.rglob("*.md")):
         if path.name.startswith("."):
             continue
@@ -1670,7 +1671,28 @@ def discover_review_artifacts(review_dir: Path, output_path: Path) -> tuple[list
         warnings.extend(f"{path.name}: {warning}" for warning in file_warnings)
         if output_kind == "prose":
             warnings.append(f"{path.name}: no structured pass_output appendix found.")
-    return discovered, warnings, min(mtimes) if mtimes else None
+
+    by_pass_id: dict[str, list[dict[str, Any]]] = {}
+    for item in discovered:
+        by_pass_id.setdefault(item["pass_id"], []).append(item)
+    for pass_id, items in sorted(by_pass_id.items()):
+        if len(items) <= 1:
+            continue
+        paths = [item["path"] for item in items]
+        message = f"Multiple discovered files resolve to pass_id {pass_id!r}; explicit output selection may be required."
+        ambiguities.append(
+            {
+                "kind": "duplicate_pass_id",
+                "pass_id": pass_id,
+                "files": paths,
+                "message": message,
+            }
+        )
+        warnings.append(message)
+        for item in items:
+            item.setdefault("warnings", []).append(message)
+
+    return discovered, warnings, min(mtimes) if mtimes else None, ambiguities
 
 
 def infer_created_at(options: dict[str, Any], output_path: Path, review_state_id: str, oldest_mtime: int | None) -> tuple[str, list[str]]:
@@ -2364,7 +2386,7 @@ def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int,
     source, identity_warnings = source_identity(options)
     default_id_date = find_iso_date(str(output_path)) or datetime.now(timezone.utc).date().isoformat()
     review_state_id = options.get("review_state_id") or f"{repo['name']}-full-{default_id_date}"
-    discovered, discovery_warnings, oldest_mtime = discover_review_artifacts(review_dir, output_path)
+    discovered, discovery_warnings, oldest_mtime, ambiguities = discover_review_artifacts(review_dir, output_path)
     created_at, date_warnings = infer_created_at(options, output_path, review_state_id, oldest_mtime)
     warnings = [*identity_warnings, *discovery_warnings, *date_warnings]
 
@@ -2378,6 +2400,8 @@ def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int,
         limits.append("some-pass-outputs-lack-structured-appendix")
     if any(item["pass_id_source"].startswith("filename") for item in discovered):
         limits.append("pass-order-inferred-from-filenames")
+    if ambiguities:
+        limits.append("ambiguous-pass-output-selection")
     if source["id"] == "unknown-pre-bootstrap":
         limits.append("source-reviewer-identity-unknown")
     if any("Original review date unknown" in warning for warning in warnings):
@@ -2429,6 +2453,7 @@ def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int,
             "output": str(output_path),
         },
         "discovered_files": discovered,
+        "ambiguities": ambiguities,
         "warnings": warnings,
     }
 
@@ -2451,6 +2476,7 @@ def state_command(positionals: list[str], options: dict[str, Any]) -> tuple[int,
         "pass_outputs": len(discovered),
         "claims": 0,
         "discovered_files": discovered,
+        "ambiguities": ambiguities,
         "warnings": warnings,
         "next_commands": next_commands,
     }
