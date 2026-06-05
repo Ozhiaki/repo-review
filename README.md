@@ -17,8 +17,11 @@ The series is designed to be run in order. Each pass is meant to be performed wi
 | 03 | The Trace | Whether the repo's stated obligations are actually enforced by the running code |
 | 04 | The Twin | What the repo's choices look like next to one adjacent repo with a different mental model |
 | 05 | The Lift | What can be torn off the repo and survive on its own |
+| 06 | The Delta Review | Which prior judgments need to move after the repo changes |
 
 Passes 01–04 are diagnostic. Pass 05 is extractive. They do different work and produce different output.
+
+Pass 06 is incremental. It is not part of the base sequence and should not be shown during the initial review. Use it later, after the target repo has changed, to update an existing review package without rerunning the base prompts from scratch.
 
 ---
 
@@ -35,6 +38,19 @@ Passes 01–04 are diagnostic. Pass 05 is extractive. They do different work and
 
 Each pass produces both prose (for the human curator) and a YAML appendix (for downstream tooling).
 
+## How to update a review
+
+Use **The Delta Review** when the target repo has moved since the baseline analysis and you want to know which judgments, if any, need to change.
+
+Give the analyzer:
+
+1. The prior review package, including prose and YAML appendices when available.
+2. The baseline repo reference: commit SHA, tag, date, archive, or other stable identifier.
+3. The updated repo reference.
+4. Change evidence between the two references, preferably `git diff --stat`, `git log --oneline <baseline>..<updated>`, and the diffs for files that look load-bearing.
+
+The Delta Review treats the structured appendices as an index and the prose as the authority. It should inspect the repo changes, triage the prior claims, and produce a focused update memo. If the repo changed too much for an incremental update to be honest, it should say so and name the smallest base pass or passes that must be rerun.
+
 ---
 
 ## Output format
@@ -45,6 +61,8 @@ Every pass produces two outputs:
 - **YAML appendix.** A `pass_output:` block at the end of the document, schema-aware, suitable for ingestion by downstream tools that need to route findings, compare repos, or feed structured data into other systems.
 
 The YAML uses neutral terminology (`topic_tags`, `confidence`, `pass_output`, etc.) so the output can be consumed by tools that have nothing to do with the original use case the series was built for. Each YAML block is keyed by `pass_id`, allowing higher-level tools to route or compose the outputs without parsing prose.
+
+Each structured appendix also identifies the source state it analyzed. `source_state` records the reviewed commit, tag, archive, date, pasted-file set, or `unknown`; `analyzed_at` records when the analysis happened, not what code was analyzed. The Delta Review can consume older outputs that lack `source_state`, but it should treat that baseline as lower precision. The minimal schema is documented in [`STRUCTURED_OUTPUT_SCHEMA.md`](STRUCTURED_OUTPUT_SCHEMA.md).
 
 ---
 
@@ -86,5 +104,6 @@ repo-review/
 ├── 03-trace.md
 ├── 04-twin.md
 ├── 05-lift.md
+├── 06-delta-review.md
 └── reviews/                         # individual repo analyses
 ```

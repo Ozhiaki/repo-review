@@ -1,7 +1,7 @@
 ---
 pass_id: twin
 name: The Twin
-version: 2
+version: 3
 prerequisites:
   - first-read
   - discounted-artifact
@@ -168,18 +168,32 @@ Pull out 2-4 short observations that are *only legible because the comparison ex
 
 After the prose, append a YAML block in this exact shape:
 
+Use `focal_source_state` and `twin_source_state` to identify the exact source
+states compared. If you cannot identify either side, write `unknown` for that
+side rather than inferring it from `analyzed_at`.
+
 ```yaml
 pass_output:
   pass_id: twin
   focal_repo: <identifier or URL>
   twin_repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
+  focal_source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
+  twin_source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
   twin_selection_justification: |
     <one paragraph addressing the three constraints>
   shared_heresy:
     statement: <one sentence>
-    focal_location: <file path or paths>
-    twin_location: <file path or paths>
+    focal_paths:
+      - <file path>
+    twin_paths:
+      - <file path>
     convergence: <independent | lineage-driven | unclear>
   divergent_orthodoxy:
     settled_question: <one sentence>
@@ -187,6 +201,10 @@ pass_output:
     twin_side: <one phrase>
     verdict: <focal-better | twin-better | unresolved>
     verdict_one_liner: <short justification>
+    focal_paths:
+      - <file path>
+    twin_paths:
+      - <file path>
   hidden_lineage:
     upstream_named: <true | false | shape-only>
     upstream: <name or shape description or null>
@@ -200,6 +218,10 @@ pass_output:
     sections_shifted:
       - section: <name from prior analysis>
         direction: <sharper | softer | redirected | refuted>
+        focal_paths:
+          - <file path>
+        twin_paths:
+          - <file path>
   twin_crossed_observations:
     - id: <short slug>
       text: |

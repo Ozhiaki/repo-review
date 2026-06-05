@@ -1,7 +1,7 @@
 ---
 pass_id: discounted-artifact
 name: The Discounted Artifact
-version: 2
+version: 3
 prerequisites:
   - first-read
 output_kind: prose-with-yaml-appendix
@@ -130,11 +130,18 @@ A short paragraph (3 to 5 sentences) reflecting on the gap between v1 and v2 as 
 
 After the prose, append a YAML block in this exact shape:
 
+Use `source_state` to identify the exact source state analyzed. If you cannot
+identify it, write `unknown` rather than inferring it from `analyzed_at`.
+
 ```yaml
 pass_output:
   pass_id: discounted-artifact
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
+  source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
   discounted_artifact:
     path: <file path>
     type: <document | config | test-suite | schema | comment-thread | vendored-dep | migration-history | other>
@@ -153,7 +160,8 @@ pass_output:
     <required only if null_result is true; otherwise null>
   central_abstraction_post_v2:
     name: <one short phrase>
-    location: <file path>
+    paths:
+      - <file path>
     changed_from_v1: <true | false>
   topic_tags: [<tag>, <tag>, ...]
   confidence:

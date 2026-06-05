@@ -1,7 +1,7 @@
 ---
 pass_id: trace
 name: The Trace
-version: 2
+version: 3
 prerequisites:
   - first-read
   - discounted-artifact
@@ -131,11 +131,18 @@ State the post-trace central abstraction (confirmed or replaced). List the v2 se
 
 After the prose, append a YAML block in this exact shape:
 
+Use `source_state` to identify the exact source state analyzed. If you cannot
+identify it, write `unknown` rather than inferring it from `analyzed_at`.
+
 ```yaml
 pass_output:
   pass_id: trace
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
+  source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
   load_bearing: <true | false>
   early_termination_reason: |
     <required only if load_bearing is false; otherwise null>
@@ -147,11 +154,21 @@ pass_output:
       - <candidate one-liner>
       - <candidate one-liner>
   trace_layers:
-    abstract_statement: <file path or paths>
-    normative_encoding: <file path or paths>
-    implementation: <file path or paths>
-    verification: <file path or paths>
-    operational_enforcement: <file path or paths>
+    abstract_statement:
+      paths:
+        - <file path>
+    normative_encoding:
+      paths:
+        - <file path>
+    implementation:
+      paths:
+        - <file path>
+    verification:
+      paths:
+        - <file path>
+    operational_enforcement:
+      paths:
+        - <file path>
     breaks_gaps_soft_spots: |
       <one paragraph naming the weakest layer and why>
   verdict:

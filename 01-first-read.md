@@ -1,7 +1,7 @@
 ---
 pass_id: first-read
 name: The First Read
-version: 2
+version: 3
 prerequisites: []
 output_kind: prose-with-yaml-appendix
 terminates_early_when: never
@@ -108,19 +108,28 @@ This section is not optional. It is not a hedge. It is the document the later pa
 
 After the prose, append a YAML block in this exact shape:
 
+Use `source_state` to identify the exact source state analyzed. If you cannot
+identify it, write `unknown` rather than inferring it from `analyzed_at`.
+
 ```yaml
 pass_output:
   pass_id: first-read
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
+  source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
   central_abstraction:
     name: <one short phrase>
-    location: <file path or paths>
+    paths:
+      - <file path>
     is_load_bearing: <true | false | partial>
   taste_verdict: <distinctive | ordinary | strange-unproductively | strange-productively | insufficient-evidence>
   signature_move:
     name: <one short phrase or null>
-    location: <file path or null>
+    paths:
+      - <file path>
   weird_file:
     path: <file path or null>
     one_line_why: <short explanation or null>

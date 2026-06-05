@@ -1,7 +1,7 @@
 ---
 pass_id: lift
 name: The Lift
-version: 2
+version: 3
 prerequisites:
   - first-read
   - discounted-artifact
@@ -132,18 +132,29 @@ A short prose preamble naming the extraction-yield finding, followed by per-seed
 
 After the prose, append a YAML block in this exact shape:
 
+Use `source_state` to identify the exact source state analyzed. Put repo-relative
+paths only in `source_paths`; use `source_notes` for symbols, headings, line
+hints, or other non-path context.
+
 ```yaml
 pass_output:
   pass_id: lift
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
+  source_state:
+    ref: <string>
+    ref_kind: <commit | tag | archive | date | pasted-files | unknown>
+    dirty: <true | false | unknown>
   yields_extractables: <true | false>
   early_termination_reason: |
     <required only if yields_extractables is false; otherwise null>
   seeds:
     - id: <short slug>
       name: <standalone name>
-      source_location: <file paths, function names>
+      source_paths:
+        - <file path>
+      source_notes: |
+        <function names, symbols, headings, line hints, or context>
       what_it_does: |
         <paragraph>
       survives_because:
