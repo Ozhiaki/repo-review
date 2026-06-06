@@ -16,6 +16,10 @@ source_state:
   dirty: <true | false | unknown>
 ```
 
+This includes the optional Synthesis pass. Synthesis composes prior review
+artifacts, but its `source_state` still records the focal repo source state
+being synthesized, not the review artifact files.
+
 - `ref` is the most precise identifier actually available for the analyzed
   source state. Prefer an exact commit SHA when available. Use `unknown` rather
   than inferring from `analyzed_at`.
@@ -78,6 +82,10 @@ source_notes: |
 ```
 
 Do not put repo-relative paths in `source_notes`.
+
+Synthesis uses `paths` for repo-relative evidence behind synthesized claims.
+Use separate prose fields such as `source_state_notes` and `movement_summary`
+for non-path context.
 
 ## Backwards Compatibility
 

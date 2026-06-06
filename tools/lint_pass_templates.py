@@ -13,6 +13,7 @@ from pathlib import Path
 DEFAULT_PASS_FILES = [
     "01-first-read.md",
     "02-discounted-artifact.md",
+    "02.5-synthesis.md",
     "03-trace.md",
     "04-twin.md",
     "05-lift.md",
@@ -21,7 +22,13 @@ DEFAULT_PASS_FILES = [
 
 SOURCE_FIELDS = ("ref", "ref_kind", "dirty")
 PATH_KEYS = {"location", "paths", "source_paths", "focal_paths", "twin_paths"}
-SINGLE_REPO_PASSES = {"first-read", "discounted-artifact", "trace", "lift"}
+SINGLE_REPO_PASSES = {
+    "first-read",
+    "discounted-artifact",
+    "synthesis",
+    "trace",
+    "lift",
+}
 PATH_RE = re.compile(
     r"\b(?:\.{0,2}/)?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]{1,8}\b"
 )

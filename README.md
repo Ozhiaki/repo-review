@@ -14,12 +14,15 @@ The series is designed to be run in order. Each pass is meant to be performed wi
 |------|------|---------|
 | 01 | The First Read | The first impression — coverage-driven, opinionated, blind to its own blind spots |
 | 02 | The Discounted Artifact | The largest or most formal artifact the first pass under-read |
+| 02.5 | The Synthesis | Optional composition of the first two passes into one current judgment |
 | 03 | The Trace | Whether the repo's stated obligations are actually enforced by the running code |
 | 04 | The Twin | What the repo's choices look like next to one adjacent repo with a different mental model |
 | 05 | The Lift | What can be torn off the repo and survive on its own |
 | 06 | The Delta Review | Which prior judgments need to move after the repo changes |
 
 Passes 01–04 are diagnostic. Pass 05 is extractive. They do different work and produce different output.
+
+Pass 02.5 is compositional and optional. It does not inspect the repo from scratch; it turns The First Read and The Discounted Artifact into one current judgment before the deeper corrective passes.
 
 Pass 06 is incremental. It is not part of the base sequence and should not be shown during the initial review. Use it later, after the target repo has changed, to update an existing review package without rerunning the base prompts from scratch.
 
@@ -32,9 +35,10 @@ Pass 06 is incremental. It is not part of the base sequence and should not be sh
 1. Pick a repo worth thinking about.
 2. Give the analyzer **The First Read** only. Let it produce its full analysis.
 3. Give it **The Discounted Artifact**. It will revise the first read into v2.
-4. Give it **The Trace**. It will produce a verdict on whether the spine reaches the bones — or terminate early if no load-bearing obligation exists.
-5. Optionally give it **The Twin** with a chosen adjacent repo. The twin must satisfy three constraints (shared terrain, different mental model, comparable maturity). Selection guidance is in the pass itself.
-6. Optionally give it **The Lift** to surface extractable seeds — or terminate early if the repo is extraction-poor.
+4. Optionally give it **The Synthesis** if you want a compact current account of passes 1 and 2 before moving on.
+5. Give it **The Trace**. It will produce a verdict on whether the spine reaches the bones — or terminate early if no load-bearing obligation exists.
+6. Optionally give it **The Twin** with a chosen adjacent repo. The twin must satisfy three constraints (shared terrain, different mental model, comparable maturity). Selection guidance is in the pass itself.
+7. Optionally give it **The Lift** to surface extractable seeds — or terminate early if the repo is extraction-poor.
 
 Each pass produces both prose (for the human curator) and a YAML appendix (for downstream tooling).
 
@@ -50,6 +54,8 @@ Give the analyzer:
 4. Change evidence between the two references, preferably `git diff --stat`, `git log --oneline <baseline>..<updated>`, and the diffs for files that look load-bearing.
 
 The Delta Review treats the structured appendices as an index and the prose as the authority. It should inspect the repo changes, triage the prior claims, and produce a focused update memo. If the repo changed too much for an incremental update to be honest, it should say so and name the smallest base pass or passes that must be rerun.
+
+For local-agent execution, use [`DELTA_REVIEW_RUNBOOK.md`](DELTA_REVIEW_RUNBOOK.md). The runbook treats `06-delta-review.md` as the analytical prompt and has the agent derive refs, changed files, focused evidence, and diffs from local artifacts and git history.
 
 ---
 
@@ -101,9 +107,11 @@ repo-review/
 ├── README.md
 ├── 01-first-read.md
 ├── 02-discounted-artifact.md
+├── 02.5-synthesis.md
 ├── 03-trace.md
 ├── 04-twin.md
 ├── 05-lift.md
 ├── 06-delta-review.md
+├── DELTA_REVIEW_RUNBOOK.md
 └── reviews/                         # individual repo analyses
 ```

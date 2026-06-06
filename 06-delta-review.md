@@ -6,6 +6,7 @@ prerequisites:
   - first-read
 recommended_prerequisites:
   - discounted-artifact
+  - synthesis
   - trace
   - twin
   - lift
@@ -24,7 +25,7 @@ intended_audience:
 
 ## Why this is a separate document
 
-The base passes ask an analyzer to form expensive judgments about a repo at a particular moment in its evolution. That cost is part of their value: The First Read catches a real first impression, The Discounted Artifact corrects a predictable attention failure, The Trace tests whether the repo's spine reaches its bones, The Twin anchors originality against an adjacent repo, and The Lift asks what survives extraction.
+The base passes ask an analyzer to form expensive judgments about a repo at a particular moment in its evolution. That cost is part of their value: The First Read catches a real first impression, The Discounted Artifact corrects a predictable attention failure, the optional Synthesis composes those first two judgments, The Trace tests whether the repo's spine reaches its bones, The Twin anchors originality against an adjacent repo, and The Lift asks what survives extraction.
 
 When the target repo changes, running those base passes again from scratch is often wasteful. Most commits do not invalidate the deepest judgments. They add surface area, strengthen an already-identified move, weaken one claim, or leave the original analysis intact. The update question is narrower:
 
@@ -73,7 +74,7 @@ Do not paste the base prompts again unless this pass concludes that a base rerun
 
 You are updating an existing repo-review analysis after the target repo changed.
 
-You are not performing The First Read again. You are not rerunning The Discounted Artifact, The Trace, The Twin, or The Lift from scratch. You are conducting a delta review: compare the prior review package against the repo changes since the baseline reference, then decide what must change in the prior analysis.
+You are not performing The First Read again. You are not rerunning The Discounted Artifact, The Synthesis, The Trace, The Twin, or The Lift from scratch. You are conducting a delta review: compare the prior review package against the repo changes since the baseline reference, then decide what must change in the prior analysis.
 
 ### 1. Establish the baseline
 
@@ -88,9 +89,12 @@ Use the structured appendices as a claim index. At minimum, extract these candid
 
 - First Read: central abstraction, taste verdict, signature move, weird file, confidence blind spots.
 - Discounted Artifact: artifact chosen, delta size, shifted sections, post-v2 central abstraction.
+- Synthesis: current thesis, pass movements, surviving claims, unresolved questions, confidence blind spots.
 - Trace: load-bearing obligation, enforcement verdict, breaks/gaps/soft spots, v2 update.
 - Twin: shared heresy, divergent orthodoxy, hidden lineage, negative space, re-verdict.
 - Lift: whether the repo yielded extractables, seed list, extraction difficulty, rankings.
+
+Official synthesis artifacts use `pass_output: pass_id: synthesis` and should be treated as structured compositional prior outputs. Older informal synthesis artifacts with a different root, such as `synthesis_output`, remain useful prose context but should be marked as lacking a standard structured appendix.
 
 Then read the prose around those claims. A schema field is a handle, not the claim itself.
 
@@ -212,7 +216,7 @@ pass_output:
     ref_kind: <commit | tag | archive | date | pasted-files | unknown>
     dirty: <true | false | unknown>
   prior_passes_consumed:
-    - pass_id: <first-read | discounted-artifact | trace | twin | lift | other>
+    - pass_id: <first-read | discounted-artifact | synthesis | trace | twin | lift | other>
       artifact: <file path, URL, pasted text label, or null>
       prose_present: <true | false>
       structured_appendix_present: <true | false>
@@ -247,13 +251,13 @@ pass_output:
       patch_prior_analysis: <true | false>
   new_claims:
     - id: <stable short slug>
-      belongs_after_pass: <first-read | discounted-artifact | trace | twin | lift | delta-review>
+      belongs_after_pass: <first-read | discounted-artifact | synthesis | trace | twin | lift | delta-review>
       statement: |
         <new claim introduced by the update>
       evidence:
         - <file path, commit, or diff hunk description>
   section_patches:
-    - pass_id: <pass id>
+    - pass_id: <first-read | discounted-artifact | synthesis | trace | twin | lift | delta-review>
       section: <section name>
       direction: <sharper | softer | redirected | refuted | appended | unchanged>
       patch_note: |

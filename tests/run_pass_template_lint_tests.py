@@ -12,6 +12,7 @@ FIXTURES = ROOT / "tests" / "fixtures" / "pass-template-lint"
 
 CASES = [
     ("good-first-read.md", True),
+    ("good-synthesis.md", True),
     ("bad-missing-source-state.md", False),
     ("bad-semicolon-in-paths.md", False),
     ("bad-path-in-source-notes.md", False),
