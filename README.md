@@ -26,6 +26,8 @@ Pass 02.5 is compositional and optional. It does not inspect the repo from scrat
 
 Pass 06 is incremental. It is not part of the base sequence and should not be shown during the initial review. Use it later, after the target repo has changed, to update an existing review package without rerunning the base prompts from scratch.
 
+Passes 03–05 each open with a **Coverage Closure** step: before the pass's own work, the analyzer opens the previously named blind spot most likely to change the current thesis and records what it found. This is the series' closing discipline — it makes the main sequence act on the most thesis-threatening thing it has already noticed but not yet read. Delta Review is unchanged by it and remains an update-only pass.
+
 ---
 
 ## How to run a review
@@ -69,6 +71,8 @@ Every pass produces two outputs:
 The YAML uses neutral terminology (`topic_tags`, `confidence`, `pass_output`, etc.) so the output can be consumed by tools that have nothing to do with the original use case the series was built for. Each YAML block is keyed by `pass_id`, allowing higher-level tools to route or compose the outputs without parsing prose.
 
 Each structured appendix also identifies the source state it analyzed. `source_state` records the reviewed commit, tag, archive, date, pasted-file set, or `unknown`; `analyzed_at` records when the analysis happened, not what code was analyzed. The Delta Review can consume older outputs that lack `source_state`, but it should treat that baseline as lower precision. The minimal schema is documented in [`STRUCTURED_OUTPUT_SCHEMA.md`](STRUCTURED_OUTPUT_SCHEMA.md).
+
+Every base-sequence pass (01 through 05) also carries a concrete `smallest_open` target in its `confidence` block — the single smallest file or document that, if opened next, would most reduce the pass's largest uncertainty — alongside a shorter, more concrete blind-spots note.
 
 ---
 
