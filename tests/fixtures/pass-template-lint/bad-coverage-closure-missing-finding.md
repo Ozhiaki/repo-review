@@ -1,21 +1,23 @@
 ---
-pass_id: synthesis
-version: 1
+pass_id: trace
+version: 3
 ---
 
 ```yaml
 pass_output:
-  pass_id: synthesis
+  pass_id: trace
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   source_state:
     ref: <string>
     ref_kind: <commit | tag | archive | date | pasted-files | unknown>
     dirty: <true | false | unknown>
-  synthesized_central_abstraction:
-    name: <one short phrase>
-    paths:
-      - src/core.py
+  coverage_closure:
+    chosen_from_pass: <first-read | discounted-artifact | synthesis>
+    path: <repo-relative path>
+    why_this_was_most_thesis_threatening: <one sentence>
+    changed_prior_judgment: <true | false>
+    shift_summary: <short | null>
   confidence:
     overall: <high | medium | low>
     blind_spots: |

@@ -15,4 +15,12 @@ pass_output:
   central_abstraction:
     paths:
       - src/core.py
+  confidence:
+    overall: <high | medium | low>
+    blind_spots: |
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```

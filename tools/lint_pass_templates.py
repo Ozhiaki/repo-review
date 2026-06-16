@@ -29,6 +29,24 @@ SINGLE_REPO_PASSES = {
     "trace",
     "lift",
 }
+SMALLEST_OPEN_PASSES = {
+    "first-read",
+    "discounted-artifact",
+    "synthesis",
+    "trace",
+    "twin",
+    "lift",
+}
+SMALLEST_OPEN_FIELDS = ("path", "why_this_open", "defer_to_pass")
+COVERAGE_CLOSURE_PASSES = {"trace", "twin", "lift"}
+COVERAGE_CLOSURE_FIELDS = (
+    "chosen_from_pass",
+    "path",
+    "why_this_was_most_thesis_threatening",
+    "finding",
+    "changed_prior_judgment",
+    "shift_summary",
+)
 PATH_RE = re.compile(
     r"\b(?:\.{0,2}/)?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]{1,8}\b"
 )
@@ -94,8 +112,17 @@ def indent_of(line):
     return len(line) - len(line.lstrip(" "))
 
 
-def block_has_fields(block, key, fields):
-    key_re = re.compile(r"^  " + re.escape(key) + r":\s*$")
+def fields_under(block, key, key_indent):
+    """Return (direct_child_field_names, key_present).
+
+    Finds the first line `<key_indent spaces>key:` and collects the names of its
+    direct children indented exactly key_indent + 2. Works at any nesting depth,
+    so it handles both top-level keys (e.g. `coverage_closure`) and nested ones
+    (e.g. `smallest_open` under `confidence`).
+    """
+    child_indent = key_indent + 2
+    key_re = re.compile(r"^" + " " * key_indent + re.escape(key) + r":\s*$")
+    child_re = re.compile(r"^" + " " * child_indent + r"([A-Za-z_][A-Za-z0-9_]*):")
     for idx, (_, line) in enumerate(block):
         if not key_re.match(line):
             continue
@@ -104,15 +131,21 @@ def block_has_fields(block, key, fields):
         for _, child in block[idx + 1 :]:
             if not child.strip():
                 continue
-            if indent_of(child) <= 2:
+            if indent_of(child) <= key_indent:
                 break
-            child_match = re.match(r"^    ([A-Za-z_][A-Za-z0-9_]*):", child)
+            child_match = child_re.match(child)
             if child_match:
                 found.add(child_match.group(1))
-        missing = [field for field in fields if field not in found]
-        return missing
+        return found, True
 
-    return list(fields)
+    return set(), False
+
+
+def block_has_fields(block, key, fields):
+    found, present = fields_under(block, key, 2)
+    if not present:
+        return list(fields)
+    return [field for field in fields if field not in found]
 
 
 def source_notes_lines(block):
@@ -202,6 +235,31 @@ def validate_path(path):
                 failures.append(f"{path}: {key} missing field(s): {', '.join(missing)}")
     else:
         failures.append(f"{path}: unknown or missing pass_id in pass_output block")
+
+    if pass_id in SMALLEST_OPEN_PASSES:
+        conf_children, conf_present = fields_under(block, "confidence", 2)
+        if not conf_present:
+            failures.append(f"{path}: missing confidence block")
+        elif "smallest_open" not in conf_children:
+            failures.append(f"{path}: confidence missing smallest_open")
+        else:
+            so_children, _ = fields_under(block, "smallest_open", 4)
+            missing = [f for f in SMALLEST_OPEN_FIELDS if f not in so_children]
+            if missing:
+                failures.append(
+                    f"{path}: confidence.smallest_open missing field(s): {', '.join(missing)}"
+                )
+
+    if pass_id in COVERAGE_CLOSURE_PASSES:
+        cc_children, cc_present = fields_under(block, "coverage_closure", 2)
+        if not cc_present:
+            failures.append(f"{path}: missing coverage_closure block")
+        else:
+            missing = [f for f in COVERAGE_CLOSURE_FIELDS if f not in cc_children]
+            if missing:
+                failures.append(
+                    f"{path}: coverage_closure missing field(s): {', '.join(missing)}"
+                )
 
     failures.extend(path_field_failures(block, path))
 

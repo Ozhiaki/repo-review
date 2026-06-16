@@ -13,11 +13,23 @@ FIXTURES = ROOT / "tests" / "fixtures" / "pass-template-lint"
 CASES = [
     ("good-first-read.md", True),
     ("good-synthesis.md", True),
+    ("good-trace.md", True),
     ("bad-missing-source-state.md", False),
     ("bad-semicolon-in-paths.md", False),
     ("bad-path-in-source-notes.md", False),
     ("bad-no-frontmatter.md", False),
     ("bad-missing-delta-source-state.md", False),
+    ("bad-missing-smallest-open.md", False),
+    ("bad-smallest-open-missing-path.md", False),
+    ("bad-smallest-open-missing-why-this-open.md", False),
+    ("bad-smallest-open-missing-defer-to-pass.md", False),
+    ("bad-missing-coverage-closure.md", False),
+    ("bad-coverage-closure-missing-chosen-from-pass.md", False),
+    ("bad-coverage-closure-missing-path.md", False),
+    ("bad-coverage-closure-missing-rationale.md", False),
+    ("bad-coverage-closure-missing-finding.md", False),
+    ("bad-coverage-closure-missing-changed-prior-judgment.md", False),
+    ("bad-coverage-closure-missing-shift-summary-when-true.md", False),
 ]
 
 
