@@ -1,7 +1,7 @@
 ---
 pass_id: discounted-artifact
 name: The Discounted Artifact
-version: 3
+version: 4
 prerequisites:
   - first-read
 output_kind: prose-with-yaml-appendix

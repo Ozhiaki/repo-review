@@ -1,7 +1,7 @@
 ---
 pass_id: twin
 name: The Twin
-version: 3
+version: 4
 prerequisites:
   - first-read
   - discounted-artifact
