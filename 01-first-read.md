@@ -96,11 +96,12 @@ One paragraph. The sharpest, most confident claim you can make about what insigh
 Does this author have taste? What kind? Use a comparison if it helps — other authors, other projects, schools of thought in software design. Be willing to say it is ordinary. Be willing to say it is strange in an unproductive way. But if it is genuinely interesting, say exactly why.
 
 **7. Confidence and Reading Conditions**
-A short, honest paragraph addressing:
+A short, honest paragraph (not an open-ended reflection) addressing:
 - How much of the repo did you actually read versus skim?
 - Which sections of this analysis are you most confident in, and which are scaffolding?
-- What did you not have time or context to investigate that you suspect would matter?
+- What did you not have time or context to investigate that you suspect would matter? Keep this to your blind spots, concretely named.
 - If asked to defend the Taste Verdict against a smart reader who disagreed, where would you feel weakest?
+- What is the single smallest concrete file or document path that, if opened next, would most reduce your largest uncertainty? If you are deferring it, name the pass where you expect to open it.
 
 This section is not optional. It is not a hedge. It is the document the later passes need in order to do their work.
 
@@ -139,7 +140,11 @@ pass_output:
     weakest_section: <section number from prose, e.g. "5">
     coverage: <thorough | partial | thin>
     blind_spots: |
-      <one paragraph>
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```
 
 `topic_tags` are domain or subject tags chosen by the analyzer (e.g. `distributed-systems`, `static-analysis`, `cli-tooling`, `formal-methods`). Multi-tag is acceptable. No-tag is suspicious — the analyzer should be able to place the repo somewhere.
