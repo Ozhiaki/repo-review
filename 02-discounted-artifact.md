@@ -167,7 +167,11 @@ pass_output:
   confidence:
     overall: <high | medium | low>
     blind_spots: |
-      <one paragraph>
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```
 
 ---
