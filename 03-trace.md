@@ -42,6 +42,30 @@ Paste the prompt below into the same Claude chat after the v2 analysis is comple
 
 You have produced a complete repo analysis through v2. Now do one final pass.
 
+### Coverage Closure (required — do this before the trace)
+
+Before tracing the obligation, close one open thread the prior passes left
+behind. This step is **required**, and it is **separate from the trace's main
+analytical work** below — do not fold it into the trace or skip it because the
+trace feels more important.
+
+Open the previously named blind spot **most likely to change the current
+thesis**. Not any prior blind spot, and not the easiest one to open — the single
+one whose resolution is most likely to move the judgment you are carrying into
+this pass. (The `smallest_open` carried forward from the earlier passes is the
+obvious first candidate, but choose the one that actually most threatens the
+thesis.)
+
+State, explicitly:
+
+- **Which prior blind spot you chose** — name the pass it came from and the file path.
+- **Why that blind spot was the most thesis-threatening** — why it, above the others, was most likely to change the current thesis.
+- **What you found** when you actually opened it.
+- **Whether the finding changes any prior judgment**, and if so, how.
+
+Record this in the `coverage_closure` block of the structured appendix. Then
+proceed to the trace.
+
 ### 1. Does this repo even have a load-bearing obligation?
 
 Before tracing anything, answer this honestly.
@@ -86,6 +110,8 @@ Answer these directly:
 - **Same claim or substitute?** Does the implementation enforce the same claim the abstract layer makes, or a weaker substitute that the author has not noticed is weaker?
 - **Wise incompleteness or abandoned ambition?** If the obligation is partially fulfilled, is the gap *deferred* (the author knows, has reasons, would close it under the right conditions) or *abandoned* (the author wrote it, moved on, and the prose now overstates the system)? A deferred gap with a credible reason is a sign of taste, not failure. An abandoned gap is the central finding.
 - **What the trace reveals about taste.** What does this trace expose about the author's actual judgment that the v1 and v2 readings did not?
+
+What is the smallest piece of evidence that would flip your verdict on deferred-versus-abandoned, or on same-claim-versus-substitute? If you have not looked for it, look now.
 
 ### 5. Update v2
 
@@ -143,6 +169,13 @@ pass_output:
     ref: <string>
     ref_kind: <commit | tag | archive | date | pasted-files | unknown>
     dirty: <true | false | unknown>
+  coverage_closure:
+    chosen_from_pass: <first-read | discounted-artifact | synthesis>
+    path: <repo-relative path>
+    why_this_was_most_thesis_threatening: <one sentence>
+    finding: <one short paragraph>
+    changed_prior_judgment: <true | false>
+    shift_summary: <short | null>
   load_bearing: <true | false>
   early_termination_reason: |
     <required only if load_bearing is false; otherwise null>
@@ -186,7 +219,11 @@ pass_output:
   confidence:
     overall: <high | medium | low>
     blind_spots: |
-      <one paragraph>
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```
 
 ---
