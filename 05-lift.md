@@ -65,6 +65,29 @@ If the repo is extraction-poor, say so plainly. Produce instead a one-paragraph 
 
 If the repo yields real extractables, continue.
 
+### Coverage Closure (required — do this before surfacing seeds)
+
+Before surfacing any extractable seeds, close one open thread the prior passes
+left behind. This step is **required**, and it is **separate from the extraction
+work** below — do not fold it into the seed hunt or skip it because the seeds
+feel more useful.
+
+Open the previously named blind spot **most likely to change the current
+thesis** about what this repo yields. Not any prior blind spot, and not the
+easiest one to open — the single one whose resolution is most likely to move the
+judgment you are carrying into this pass. (The `smallest_open` carried forward
+from the earlier passes is the obvious first candidate.)
+
+State, explicitly:
+
+- **Which prior blind spot you chose** — name the pass it came from and the file path.
+- **Why that blind spot was the most thesis-threatening** — why it, above the others, was most likely to change the current thesis.
+- **What you found** when you actually opened it.
+- **Whether the finding changes any prior judgment**, and if so, how.
+
+Record this in the `coverage_closure` block of the structured appendix. Then
+surface the seeds.
+
 ### 2. Surface the seeds
 
 Identify between 1 and 5 extractable seeds. Prefer fewer, stronger seeds over more, weaker ones. A repo that yields one excellent seed and nothing else is more interesting than a repo that yields five mediocre ones.
@@ -145,6 +168,13 @@ pass_output:
     ref: <string>
     ref_kind: <commit | tag | archive | date | pasted-files | unknown>
     dirty: <true | false | unknown>
+  coverage_closure:
+    chosen_from_pass: <first-read | discounted-artifact | synthesis | trace | twin>
+    path: <repo-relative path>
+    why_this_was_most_thesis_threatening: <one sentence>
+    finding: <one short paragraph>
+    changed_prior_judgment: <true | false>
+    shift_summary: <short | null>
   yields_extractables: <true | false>
   early_termination_reason: |
     <required only if yields_extractables is false; otherwise null>
@@ -182,7 +212,11 @@ pass_output:
   confidence:
     overall: <high | medium | low>
     blind_spots: |
-      <one paragraph>
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```
 
 ---
