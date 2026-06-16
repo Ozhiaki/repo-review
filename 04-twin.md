@@ -77,6 +77,29 @@ Do not re-analyze the twin from scratch. Read enough of it to ground the compari
 
 Then perform the following comparison.
 
+### Coverage Closure (required — do this before the comparison)
+
+Before colliding the focal repo against the twin, close one open thread the
+prior passes left behind. This step is **required**, and it is **separate from
+the comparison's main analytical work** below — do not fold it into the
+comparison or skip it because the twin feels more interesting.
+
+Open the previously named blind spot **most likely to change the current
+thesis** you are bringing into the comparison. Not any prior blind spot, and not
+the easiest one to open — the single one whose resolution is most likely to move
+the judgment the comparison will build on. (The `smallest_open` carried forward
+from the earlier passes is the obvious first candidate.)
+
+State, explicitly:
+
+- **Which prior blind spot you chose** — name the pass it came from and the file path.
+- **Why that blind spot was the most thesis-threatening** — why it, above the others, was most likely to change the current thesis.
+- **What you found** when you actually opened it.
+- **Whether the finding changes any prior judgment**, and if so, how.
+
+Record this in the `coverage_closure` block of the structured appendix. Then
+perform the comparison.
+
 ### 1. Shared Heresy
 
 Identify one place where the focal repo and the twin **agree on something that the rest of their shared domain does not**.
@@ -186,6 +209,13 @@ pass_output:
     ref: <string>
     ref_kind: <commit | tag | archive | date | pasted-files | unknown>
     dirty: <true | false | unknown>
+  coverage_closure:
+    chosen_from_pass: <first-read | discounted-artifact | synthesis | trace>
+    path: <repo-relative path>
+    why_this_was_most_thesis_threatening: <one sentence>
+    finding: <one short paragraph>
+    changed_prior_judgment: <true | false>
+    shift_summary: <short | null>
   twin_selection_justification: |
     <one paragraph addressing the three constraints>
   shared_heresy:
@@ -230,7 +260,11 @@ pass_output:
   confidence:
     overall: <high | medium | low>
     blind_spots: |
-      <one paragraph>
+      <short paragraph>
+    smallest_open:
+      path: <repo-relative path>
+      why_this_open: <one sentence>
+      defer_to_pass: <pass_id | null>
 ```
 
 ---
