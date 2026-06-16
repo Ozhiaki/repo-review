@@ -2,3 +2,7 @@
 # issue_prefix: repo-review
 # default_priority: 2
 # default_type: task
+
+# Surface an epic's agent_context on its descendants at br show / --claim / --status in_progress.
+inherited_context:
+  enabled: true
