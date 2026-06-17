@@ -65,5 +65,5 @@ graph LR
 
 Passes 01–04 are diagnostic, 05 is extractive, 02.5 is compositional and
 optional, and 06 (Delta Review) is an out-of-band incremental update — not part of
-the base sequence. See [`README.md`](README.md) for the prose account and
+the base sequence. See [`README.md`](../README.md) for the prose account and
 [`STRUCTURED_OUTPUT_SCHEMA.md`](STRUCTURED_OUTPUT_SCHEMA.md) for the output schema.

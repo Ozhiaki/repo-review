@@ -10,7 +10,7 @@ Usage:
 
     python3 tools/lint_pass_map.py [pass_map_path]
 
-`pass_map_path` is positional and optional, defaulting to <repo-root>/PASSES.md.
+`pass_map_path` is positional and optional, defaulting to <repo-root>/docs/PASSES.md.
 The seven real template frontmatters are ALWAYS read from the repo root,
 independent of `pass_map_path`. That split — table from the argument, frontmatters
 always from the real templates — is what lets a bad fixture supply only a
@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lint_pass_templates as tmpl  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PASS_MAP = REPO_ROOT / "PASSES.md"
+DEFAULT_PASS_MAP = REPO_ROOT / "docs" / "PASSES.md"
 
 EMDASH = "—"  # — : the empty-list rendering in the serialization contract
 

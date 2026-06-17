@@ -20,7 +20,7 @@ The series is designed to be run in order. Each pass is meant to be performed wi
 | 05 | The Lift | What can be torn off the repo and survive on its own |
 | 06 | The Delta Review | Which prior judgments need to move after the repo changes |
 
-See [`PASSES.md`](PASSES.md) for the full map: every pass's version, prerequisites, early-stop condition, and a prerequisite DAG. The table above is an informal teaser; `PASSES.md` is drift-checked against the pass frontmatters.
+See [`PASSES.md`](docs/PASSES.md) for the full map: every pass's version, prerequisites, early-stop condition, and a prerequisite DAG. The table above is an informal teaser; `PASSES.md` is drift-checked against the pass frontmatters.
 
 Passes 01–04 are diagnostic. Pass 05 is extractive. They do different work and produce different output.
 
@@ -72,7 +72,7 @@ Every pass produces two outputs:
 
 The YAML uses neutral terminology (`topic_tags`, `confidence`, `pass_output`, etc.) so the output can be consumed by tools that have nothing to do with the original use case the series was built for. Each YAML block is keyed by `pass_id`, allowing higher-level tools to route or compose the outputs without parsing prose.
 
-Each structured appendix also identifies the source state it analyzed. `source_state` records the reviewed commit, tag, archive, date, pasted-file set, or `unknown`; `analyzed_at` records when the analysis happened, not what code was analyzed. The Delta Review can consume older outputs that lack `source_state`, but it should treat that baseline as lower precision. The minimal schema is documented in [`STRUCTURED_OUTPUT_SCHEMA.md`](STRUCTURED_OUTPUT_SCHEMA.md).
+Each structured appendix also identifies the source state it analyzed. `source_state` records the reviewed commit, tag, archive, date, pasted-file set, or `unknown`; `analyzed_at` records when the analysis happened, not what code was analyzed. The Delta Review can consume older outputs that lack `source_state`, but it should treat that baseline as lower precision. The minimal schema is documented in [`STRUCTURED_OUTPUT_SCHEMA.md`](docs/STRUCTURED_OUTPUT_SCHEMA.md).
 
 Every base-sequence pass (01 through 05) also carries a concrete `smallest_open` target in its `confidence` block — the single smallest file or document that, if opened next, would most reduce the pass's largest uncertainty — alongside a shorter, more concrete blind-spots note.
 
@@ -119,5 +119,12 @@ repo-review/
 ├── 05-lift.md
 ├── 06-delta-review.md
 ├── DELTA_REVIEW_RUNBOOK.md
+├── docs/                            # reference docs
+│   ├── DESIGN_PHILOSOPHY.md         #   why the project exists + the taste rules
+│   ├── PASSES.md                    #   drift-checked map of the series
+│   ├── STRUCTURED_OUTPUT_SCHEMA.md  #   the YAML appendix schema
+│   └── README.md                    #   index of this folder
+├── tools/                           # stdlib linters (templates, outputs, pass-map)
+├── tests/                           # fixtures + lint harnesses
 └── reviews/                         # individual repo analyses
 ```

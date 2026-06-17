@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lint_pass_templates as tmpl  # noqa: E402
 
 
-# --- Enum vocabularies: a controlled copy of STRUCTURED_OUTPUT_SCHEMA.md. ---
-# STRUCTURED_OUTPUT_SCHEMA.md stays the canonical, human-facing definition; these
+# --- Enum vocabularies: a controlled copy of docs/STRUCTURED_OUTPUT_SCHEMA.md. ---
+# docs/STRUCTURED_OUTPUT_SCHEMA.md stays the canonical, human-facing definition; these
 # constants are its executable mirror. Keep every enum here, in one block, so the
 # update site is obvious if the schema doc changes (see the drift note in the
 # plan / epic risks).
