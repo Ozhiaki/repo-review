@@ -1,7 +1,7 @@
 ---
 pass_id: delta-review
 name: The Delta Review
-version: 2
+version: 3
 prerequisites:
   - first-read
 recommended_prerequisites:
@@ -202,6 +202,7 @@ State whether incremental review is sufficient. If not, name the smallest base p
 
 After the prose, append a YAML block in this exact shape:
 
+<!-- repo-review:pass_output -->
 ```yaml
 pass_output:
   pass_id: delta-review

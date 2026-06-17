@@ -5,6 +5,25 @@ repo-review pass templates. Prose remains canonical; structured fields exist to
 anchor the analyzed source state and make path-bearing fields routable by later
 tools.
 
+## Output Extraction Marker
+
+Each pass template carries a stable sentinel comment on the line immediately
+above its `pass_output` fenced block:
+
+````markdown
+<!-- repo-review:pass_output -->
+```yaml
+pass_output:
+  ...
+```
+````
+
+The sentinel is exactly `<!-- repo-review:pass_output -->`. It is an HTML comment
+(invisible in rendered Markdown) that gives downstream tools an unambiguous anchor
+for locating the structured appendix. Consumers should prefer the sentinel to find
+the block, and fall back to the older heuristic — the first `pass_output:`-keyed
+`yaml` fence — for legacy outputs emitted before the marker existed.
+
 ## Source State
 
 Every standard single-repo pass output includes:

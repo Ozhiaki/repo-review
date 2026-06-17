@@ -30,6 +30,16 @@ CASES = [
     ("bad-coverage-closure-missing-finding.md", False),
     ("bad-coverage-closure-missing-changed-prior-judgment.md", False),
     ("bad-coverage-closure-missing-shift-summary-when-true.md", False),
+    # Frontmatter consistency checks. The pass_id<->filename fixture carries a
+    # numeric "NN-" prefix so the filename check applies to it (fixtures without
+    # such a prefix are exempt, as the good-*.md fixtures are).
+    ("99-passid-filename-mismatch.md", False),
+    ("bad-frontmatter-unknown-prerequisite.md", False),
+    ("bad-frontmatter-version-not-int.md", False),
+    # No-future-pass rule: a base-sequence template must not name a later pass
+    # in its prose.
+    ("good-synthesis-no-forward-ref.md", True),
+    ("bad-synthesis-names-trace.md", False),
 ]
 
 

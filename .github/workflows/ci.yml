@@ -1,0 +1,15 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python3 tools/lint_pass_templates.py
+      - run: python3 tests/run_pass_template_lint_tests.py
+      - run: python3 tools/lint_pass_outputs.py tests/fixtures/pass-output-lint/good-*.md
+      - run: python3 tests/run_pass_output_lint_tests.py
+      - run: python3 tests/run_fixture_coverage_meta_test.py

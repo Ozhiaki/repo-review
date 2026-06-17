@@ -1,7 +1,7 @@
 ---
 pass_id: first-read
 name: The First Read
-version: 5
+version: 6
 prerequisites: []
 output_kind: prose-with-yaml-appendix
 terminates_early_when: never
@@ -112,6 +112,7 @@ After the prose, append a YAML block in this exact shape:
 Use `source_state` to identify the exact source state analyzed. If you cannot
 identify it, write `unknown` rather than inferring it from `analyzed_at`.
 
+<!-- repo-review:pass_output -->
 ```yaml
 pass_output:
   pass_id: first-read

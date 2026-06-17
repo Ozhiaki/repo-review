@@ -1,7 +1,7 @@
 ---
 pass_id: twin
 name: The Twin
-version: 5
+version: 6
 prerequisites:
   - first-read
   - discounted-artifact
@@ -195,6 +195,7 @@ Use `focal_source_state` and `twin_source_state` to identify the exact source
 states compared. If you cannot identify either side, write `unknown` for that
 side rather than inferring it from `analyzed_at`.
 
+<!-- repo-review:pass_output -->
 ```yaml
 pass_output:
   pass_id: twin

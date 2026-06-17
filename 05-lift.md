@@ -1,7 +1,7 @@
 ---
 pass_id: lift
 name: The Lift
-version: 5
+version: 6
 prerequisites:
   - first-read
   - discounted-artifact
@@ -159,6 +159,7 @@ Use `source_state` to identify the exact source state analyzed. Put repo-relativ
 paths only in `source_paths`; use `source_notes` for symbols, headings, line
 hints, or other non-path context.
 
+<!-- repo-review:pass_output -->
 ```yaml
 pass_output:
   pass_id: lift

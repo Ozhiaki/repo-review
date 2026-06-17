@@ -1,7 +1,7 @@
 ---
 pass_id: discounted-artifact
 name: The Discounted Artifact
-version: 5
+version: 6
 prerequisites:
   - first-read
 output_kind: prose-with-yaml-appendix
@@ -133,6 +133,7 @@ After the prose, append a YAML block in this exact shape:
 Use `source_state` to identify the exact source state analyzed. If you cannot
 identify it, write `unknown` rather than inferring it from `analyzed_at`.
 
+<!-- repo-review:pass_output -->
 ```yaml
 pass_output:
   pass_id: discounted-artifact
