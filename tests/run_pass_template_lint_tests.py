@@ -40,6 +40,10 @@ CASES = [
     # in its prose.
     ("good-synthesis-no-forward-ref.md", True),
     ("bad-synthesis-names-trace.md", False),
+    # template_version drift guard: the appendix literal must equal frontmatter
+    # version, and must be an integer (not a leftover placeholder).
+    ("bad-template-version-mismatch.md", False),
+    ("bad-template-version-not-int.md", False),
 ]
 
 

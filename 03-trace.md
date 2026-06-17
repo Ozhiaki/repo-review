@@ -1,7 +1,7 @@
 ---
 pass_id: trace
 name: The Trace
-version: 6
+version: 7
 prerequisites:
   - first-read
   - discounted-artifact
@@ -164,6 +164,7 @@ identify it, write `unknown` rather than inferring it from `analyzed_at`.
 ```yaml
 pass_output:
   pass_id: trace
+  template_version: 7
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   source_state:

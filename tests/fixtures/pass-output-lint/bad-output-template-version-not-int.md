@@ -2,7 +2,7 @@
 ```yaml
 pass_output:
   pass_id: first-read
-  template_version: 7
+  template_version: seven
   source_state:
     ref: ddd444
     ref_kind: commit

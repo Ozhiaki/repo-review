@@ -1,7 +1,7 @@
 ---
 pass_id: first-read
 name: The First Read
-version: 6
+version: 7
 prerequisites: []
 output_kind: prose-with-yaml-appendix
 terminates_early_when: never
@@ -116,6 +116,7 @@ identify it, write `unknown` rather than inferring it from `analyzed_at`.
 ```yaml
 pass_output:
   pass_id: first-read
+  template_version: 7
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   source_state:

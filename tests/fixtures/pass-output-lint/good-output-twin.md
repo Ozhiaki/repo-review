@@ -2,6 +2,7 @@
 ```yaml
 pass_output:
   pass_id: twin
+  template_version: 7
   focal_source_state:
     ref: aaa111
     ref_kind: commit

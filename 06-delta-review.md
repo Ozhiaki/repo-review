@@ -1,7 +1,7 @@
 ---
 pass_id: delta-review
 name: The Delta Review
-version: 3
+version: 4
 prerequisites:
   - first-read
 recommended_prerequisites:
@@ -206,6 +206,7 @@ After the prose, append a YAML block in this exact shape:
 ```yaml
 pass_output:
   pass_id: delta-review
+  template_version: 4
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   baseline_source_state:

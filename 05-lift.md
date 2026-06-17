@@ -1,7 +1,7 @@
 ---
 pass_id: lift
 name: The Lift
-version: 6
+version: 7
 prerequisites:
   - first-read
   - discounted-artifact
@@ -163,6 +163,7 @@ hints, or other non-path context.
 ```yaml
 pass_output:
   pass_id: lift
+  template_version: 7
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   source_state:

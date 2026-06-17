@@ -13,3 +13,5 @@ jobs:
       - run: python3 tools/lint_pass_outputs.py tests/fixtures/pass-output-lint/good-*.md
       - run: python3 tests/run_pass_output_lint_tests.py
       - run: python3 tests/run_fixture_coverage_meta_test.py
+      - run: python3 tools/lint_pass_map.py
+      - run: python3 tests/run_pass_map_lint_tests.py

@@ -1,7 +1,7 @@
 ---
 pass_id: discounted-artifact
 name: The Discounted Artifact
-version: 6
+version: 7
 prerequisites:
   - first-read
 output_kind: prose-with-yaml-appendix
@@ -137,6 +137,7 @@ identify it, write `unknown` rather than inferring it from `analyzed_at`.
 ```yaml
 pass_output:
   pass_id: discounted-artifact
+  template_version: 7
   repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>
   source_state:

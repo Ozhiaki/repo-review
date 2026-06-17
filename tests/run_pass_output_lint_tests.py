@@ -42,6 +42,12 @@ CASES = [
     ("bad-output-delta-missing-updated-source-state.md", False),
     ("bad-output-missing-confidence.md", False),
     ("bad-output-missing-coverage-closure.md", False),
+    # Top-level required fields (outside any sub-block): pass_id (routing key) and
+    # template_version (provenance key). One missing-field fixture each, plus a
+    # non-int value fixture for template_version.
+    ("bad-output-missing-pass-id.md", False),
+    ("bad-output-missing-template-version.md", False),
+    ("bad-output-template-version-not-int.md", False),
     # Value level: enum / type / path-shape / conditional violations.
     ("bad-output-bad-ref-kind-enum.md", False),
     ("bad-output-bad-overall-enum.md", False),

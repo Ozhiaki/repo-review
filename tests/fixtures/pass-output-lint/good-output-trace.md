@@ -2,6 +2,7 @@
 ```yaml
 pass_output:
   pass_id: trace
+  template_version: 7
   repo: example/repo
   analyzed_at: 2026-06-17T00:00:00Z
   source_state:

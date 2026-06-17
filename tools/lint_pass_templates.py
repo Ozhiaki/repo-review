@@ -399,6 +399,52 @@ def path_field_failures(block, path):
     return failures
 
 
+def template_version_failures(path, lines):
+    """The appendix `template_version` literal must equal frontmatter `version`.
+
+    Once `template_version` is baked into each skeleton (a literal int, not a
+    placeholder), a future version bump could update the frontmatter `version`
+    while leaving the appendix literal stale, or vice-versa. Nothing else couples
+    them, so this guard makes them move together: a mismatch fails the lint at
+    author time. Presence is required only for sequence-numbered templates (the
+    real passes), mirroring the pass_id<->filename rule; markerless fixtures are
+    exempt.
+    """
+    _, block = pass_output_block(lines)
+    if block is None:
+        return []  # a missing appendix is reported by validate_path itself
+
+    tv_no, tv = None, None
+    tv_re = re.compile(r"^\s*template_version:\s*(.*?)\s*$")
+    for line_no, line in block:
+        match = tv_re.match(line)
+        if match:
+            tv_no, tv = line_no, match.group(1).strip().strip("\"'")
+            break
+
+    if tv is None:
+        if SEQ_PREFIX_RE.match(path.name):
+            return [f"{path}: pass_output appendix missing template_version"]
+        return []
+
+    _, fm_version = frontmatter_scalar(frontmatter_block(lines), "version")
+    try:
+        fm_int = int(fm_version, 10) if fm_version is not None else None
+    except ValueError:
+        fm_int = None  # a non-int frontmatter version is reported separately
+    try:
+        tv_int = int(tv, 10)
+    except ValueError:
+        tv_int = None
+
+    if tv_int is None or fm_int is None or tv_int != fm_int:
+        return [
+            f"{path}:{tv_no}: template_version {tv} disagrees with "
+            f"frontmatter version {fm_version}"
+        ]
+    return []
+
+
 def validate_path(path):
     failures = []
 
@@ -417,6 +463,8 @@ def validate_path(path):
     _, fm_pass_id = frontmatter_scalar(frontmatter_block(lines), "pass_id")
     if fm_pass_id:
         failures.extend(forward_reference_failures(path, lines, fm_pass_id))
+
+    failures.extend(template_version_failures(path, lines))
 
     _, block = pass_output_block(lines)
     if block is None:

@@ -65,6 +65,13 @@ PER_FIELD_BLOCKS = {
     "coverage_closure": COVERAGE_CLOSURE_FIELDS,
 }
 
+# Required *top-level* pass_output fields, outside any sub-block: pass_id is the
+# routing key, template_version the provenance key. PER_FIELD_BLOCKS models only
+# sub-block fields, leaving these two uncovered; the fixture-coverage meta-lint
+# (#6) imports this constant to require one dedicated bad fixture per top-level
+# required field, the same way it does per sub-block field.
+TOP_LEVEL_REQUIRED = ("pass_id", "template_version")
+
 SENTINEL = "<!-- repo-review:pass_output -->"
 
 
@@ -179,6 +186,23 @@ def validate_output(path):
         return [f"{path}: pass_output missing pass_id"]
     if pass_id not in CANONICAL_PASS_IDS:
         return [f"{path}: pass_output pass_id not in canonical set: {pass_id!r}"]
+
+    # --- template_version: required top-level provenance field. ---
+    # Presence + base-10 integer only. A completed output is standalone — there is
+    # no frontmatter here to compare against — so this does NOT verify the value is
+    # "correct" for any template. Correctness-at-source is guaranteed instead by
+    # the template linter's drift guard (#2).
+    tv_line, tv_raw = scalar(block, "template_version")
+    if tv_raw is None:
+        failures.append(f"{path}: pass_output missing template_version")
+    else:
+        tv = clean(tv_raw)
+        try:
+            int(tv, 10)
+        except ValueError:
+            failures.append(
+                f"{path}:{tv_line}: pass_output template_version is not an integer: {tv!r}"
+            )
 
     # --- Source state(s): required fields + ref_kind/dirty enums. ---
     if pass_id in SINGLE_REPO_PASSES:

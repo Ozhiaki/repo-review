@@ -2,6 +2,7 @@
 ```yaml
 pass_output:
   pass_id: delta-review
+  template_version: 7
   baseline_source_state:
     ref: v1.0.0
     ref_kind: tag

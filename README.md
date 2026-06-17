@@ -20,6 +20,8 @@ The series is designed to be run in order. Each pass is meant to be performed wi
 | 05 | The Lift | What can be torn off the repo and survive on its own |
 | 06 | The Delta Review | Which prior judgments need to move after the repo changes |
 
+See [`PASSES.md`](PASSES.md) for the full map: every pass's version, prerequisites, early-stop condition, and a prerequisite DAG. The table above is an informal teaser; `PASSES.md` is drift-checked against the pass frontmatters.
+
 Passes 01–04 are diagnostic. Pass 05 is extractive. They do different work and produce different output.
 
 Pass 02.5 is compositional and optional. It does not inspect the repo from scratch; it turns The First Read and The Discounted Artifact into one current judgment before the deeper corrective passes.

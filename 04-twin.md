@@ -1,7 +1,7 @@
 ---
 pass_id: twin
 name: The Twin
-version: 6
+version: 7
 prerequisites:
   - first-read
   - discounted-artifact
@@ -199,6 +199,7 @@ side rather than inferring it from `analyzed_at`.
 ```yaml
 pass_output:
   pass_id: twin
+  template_version: 7
   focal_repo: <identifier or URL>
   twin_repo: <identifier or URL>
   analyzed_at: <ISO 8601 timestamp>

@@ -24,6 +24,35 @@ for locating the structured appendix. Consumers should prefer the sentinel to fi
 the block, and fall back to the older heuristic — the first `pass_output:`-keyed
 `yaml` fence — for legacy outputs emitted before the marker existed.
 
+## Template Version
+
+Each `pass_output` block carries a `template_version` immediately after
+`pass_id`:
+
+```yaml
+pass_output:
+  pass_id: <pass id>
+  template_version: <int>
+```
+
+- `template_version` is an integer equal to the producing template's frontmatter
+  `version`. The analyzer copies it verbatim from the template skeleton; it does
+  not compute or infer it.
+- It records *which generation of the template* produced the output. After a
+  template's structured shape changes (a field added, a rule tightened), the
+  frontmatter `version` is bumped and the skeleton's `template_version` literal
+  moves with it, so an output emitted before the change carries a lower number
+  than one emitted after.
+- Consumers use it to branch on template generation — to tell a pre-change output
+  from a post-change one without diffing the prose. It complements the existing
+  identity (`pass_id`) and source-state provenance, which say *what* was analyzed
+  but not *which template* did the analyzing.
+
+A completed output is standalone: it carries the integer it was generated with
+and is not re-checked against any frontmatter. The coupling between a template's
+appendix literal and its frontmatter `version` is enforced at author time by the
+template linter, not at output time.
+
 ## Source State
 
 Every standard single-repo pass output includes:
