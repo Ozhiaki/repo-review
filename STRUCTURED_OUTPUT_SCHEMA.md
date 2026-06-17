@@ -100,22 +100,23 @@ confidence:
   smallest_open:
     path: <repo-relative path>
     why_this_open: <one sentence>
-    defer_to_pass: <pass_id | null>
+    opened_this_pass: <true | false>
 ```
 
 - `blind_spots` is a short, concrete prose paragraph naming what the pass did
   not resolve. It augments `smallest_open`; it does not replace it.
 - `smallest_open` names the single smallest concrete file or document that, if
   opened next, would most reduce the pass's largest uncertainty. It is a routing
-  aid and a deferment commitment — not proof the file was later opened.
+  aid — not proof the file was later opened.
   - `path` is the repo-relative path of that file.
   - `why_this_open` is one sentence on why opening it would most reduce
     uncertainty.
-  - `defer_to_pass` names the pass where the analyzer expects to open the file.
-    It may be `null` only when the analyzer expects to open the file in the
-    current pass. If the open is deferred, the target pass must be named;
-    deferment to nowhere is not allowed by the prompt wording, even though a
-    validator cannot prove intent.
+  - `opened_this_pass` records whether the analyzer opened this file during the
+    current pass: `true` if it was opened now, `false` if it was left open. A
+    `false` is an honest acknowledgment that the most useful open remains
+    unaddressed; it does not name a future pass to hand the work to. The Coverage
+    Closure step in `trace`, `twin`, and `lift` is what later forces the most
+    thesis-threatening carried-forward open to be opened.
 
 ## Coverage Closure
 
