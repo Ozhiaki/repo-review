@@ -101,7 +101,7 @@ A short, honest paragraph (not an open-ended reflection) addressing:
 - Which sections of this analysis are you most confident in, and which are scaffolding?
 - What did you not have time or context to investigate that you suspect would matter? Keep this to your blind spots, concretely named.
 - If asked to defend the Taste Verdict against a smart reader who disagreed, where would you feel weakest?
-- What is the single smallest concrete file or document path that, if opened next, would most reduce your largest uncertainty? If you are deferring it, name the pass where you expect to open it.
+- What is the single smallest concrete file or document path that, if opened next, would most reduce your largest uncertainty? Say whether you are opening it now or leaving it open.
 
 This section is not optional. It is not a hedge. It is the document the later passes need in order to do their work.
 
@@ -144,7 +144,7 @@ pass_output:
     smallest_open:
       path: <repo-relative path>
       why_this_open: <one sentence>
-      defer_to_pass: <pass_id | null>
+      opened_this_pass: <true | false>
 ```
 
 `topic_tags` are domain or subject tags chosen by the analyzer (e.g. `distributed-systems`, `static-analysis`, `cli-tooling`, `formal-methods`). Multi-tag is acceptable. No-tag is suspicious — the analyzer should be able to place the repo somewhere.

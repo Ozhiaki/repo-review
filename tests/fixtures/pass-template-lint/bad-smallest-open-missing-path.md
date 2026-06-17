@@ -18,5 +18,5 @@ pass_output:
       <short paragraph>
     smallest_open:
       why_this_open: <one sentence>
-      defer_to_pass: <pass_id | null>
+      opened_this_pass: <true | false>
 ```

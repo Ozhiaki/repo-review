@@ -25,5 +25,5 @@ pass_output:
     smallest_open:
       path: <repo-relative path>
       why_this_open: <one sentence>
-      defer_to_pass: <pass_id | null>
+      opened_this_pass: <true | false>
 ```

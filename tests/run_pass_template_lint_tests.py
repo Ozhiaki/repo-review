@@ -22,7 +22,7 @@ CASES = [
     ("bad-missing-smallest-open.md", False),
     ("bad-smallest-open-missing-path.md", False),
     ("bad-smallest-open-missing-why-this-open.md", False),
-    ("bad-smallest-open-missing-defer-to-pass.md", False),
+    ("bad-smallest-open-missing-opened-this-pass.md", False),
     ("bad-missing-coverage-closure.md", False),
     ("bad-coverage-closure-missing-chosen-from-pass.md", False),
     ("bad-coverage-closure-missing-path.md", False),

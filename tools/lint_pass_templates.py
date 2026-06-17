@@ -37,7 +37,7 @@ SMALLEST_OPEN_PASSES = {
     "twin",
     "lift",
 }
-SMALLEST_OPEN_FIELDS = ("path", "why_this_open", "defer_to_pass")
+SMALLEST_OPEN_FIELDS = ("path", "why_this_open", "opened_this_pass")
 COVERAGE_CLOSURE_PASSES = {"trace", "twin", "lift"}
 COVERAGE_CLOSURE_FIELDS = (
     "chosen_from_pass",
