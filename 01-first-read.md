@@ -1,7 +1,7 @@
 ---
 pass_id: first-read
 name: The First Read
-version: 4
+version: 5
 prerequisites: []
 output_kind: prose-with-yaml-appendix
 terminates_early_when: never

@@ -1,7 +1,7 @@
 ---
 pass_id: trace
 name: The Trace
-version: 4
+version: 5
 prerequisites:
   - first-read
   - discounted-artifact

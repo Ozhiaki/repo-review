@@ -1,7 +1,7 @@
 ---
 pass_id: lift
 name: The Lift
-version: 4
+version: 5
 prerequisites:
   - first-read
   - discounted-artifact
