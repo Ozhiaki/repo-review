@@ -12,7 +12,7 @@ intended_audience:
 ---
 
 # The First Read
-*A first-pass prompt for Claude to produce a deep, taste-oriented analysis of a codebase*
+*A first-pass prompt for producing a deep, evidence-backed analysis of a codebase's engineering judgment*
 
 ---
 
@@ -31,19 +31,19 @@ If you have *no* hunch and you're reviewing this repo because it crossed your pa
 
 ## What this prompt is for
 
-This is a first pass. It is meant to be performed without knowing what later passes ask for. The point of the first pass is to capture *the analyzer's first impression* — coverage-driven, time-bounded, opinionated, blind to its own blind spots. Later passes interrogate this first impression. Each one asks: *what did the first pass miss, discount, overcredit, or fail to compare against?*
+This is a first pass. It is meant to be performed without knowing what later passes ask for. The point of the first pass is to capture *the analyzer's first-pass thesis* — coverage-driven, time-bounded, opinionated, evidence-backed, and explicit about incomplete coverage. Later passes interrogate this first-pass thesis. Each one asks: *what did the first pass miss, discount, overcredit, or fail to compare against?*
 
-If you have used the later parts of this series before, do not let that knowledge bleed into this pass. Read this repo as if this were the only pass. The later passes depend on this one being honest about its blindness.
+If you have used the later parts of this series before, do not let that knowledge bleed into this pass. Read this repo as if this were the only pass. The later passes depend on this one being explicit about what it has not verified.
 
 ---
 
 ## The Prompt
 
-I want you to produce a deep, opinionated analysis of this codebase. Not a code review. Not a security audit. Not a maintainability assessment. I want to understand how the author *thinks*. What do their design decisions reveal about their mental model of the problem? Where did they make an unusual choice, and what does that choice cost and gain?
+I want you to produce a deep, opinionated analysis of this codebase. Not a code review. Not a security audit. Not a maintainability assessment. I want to understand the working theory of the problem embodied by the codebase. What do its design decisions reveal about the author's priorities, assumptions, and tradeoffs? Where did it make an unusual choice, and what does that choice cost and gain?
 
-The word I keep coming back to is **taste**. I want to know if this author has it, where it shows up, and what flavor it is.
+The focus is **engineering judgment**: where the design is strong, where it is weak, and what evidence supports that assessment.
 
-Be willing to say the taste is ordinary. Be willing to say the taste is strange in an unproductive way. But if it is genuinely interesting, dwell on why.
+Be willing to say the engineering judgment is ordinary, uneven, or weak. If a design choice is genuinely unusual and effective, explain the concrete mechanism that makes it work.
 
 ---
 
@@ -51,34 +51,34 @@ Be willing to say the taste is ordinary. Be willing to say the taste is strange 
 
 These are lenses, not a checklist. You do not need to address every one explicitly in the output. Use the ones that surface real findings for *this* repo and skip the ones that don't.
 
-**The central abstraction.** Every non-trivial codebase has one load-bearing idea — the abstraction that everything else is built around. Find it. Name it precisely. Then ask: is it the *right* abstraction for this problem, or did the author default to a familiar one? What does it foreclose? What does it make easy that would otherwise be hard?
+**The central abstraction.** Many non-trivial codebases have a load-bearing idea — an abstraction much of the system is built around. Find it if it exists. Name it precisely. Then ask: is it the *right* abstraction for this problem, or did the author default to a familiar one? What does it foreclose? What does it make easy that would otherwise be hard?
 
-**The seams.** Where did the author draw the lines between modules, layers, or concerns? These decisions are almost never discussed in READMEs but they reveal the author's working theory of the problem. A seam placed well makes the system feel inevitable. A seam placed wrong creates friction that compounds over time. Find the most interesting seam and explain why it's where it is.
+**The seams.** Where did the author draw the lines between modules, layers, or concerns? These decisions are almost never discussed in READMEs but they reveal the codebase's working theory of the problem. A boundary placed well localizes change, clarifies ownership, and reduces coupling. A boundary placed poorly spreads changes across modules or makes behavior harder to reason about. Find the most interesting boundary and explain why it is where it is.
 
-**What they chose NOT to do.** Taste is often more visible in omissions than additions. What obvious feature is missing? What abstraction did they refuse to introduce? What dependency did they avoid when a lesser engineer would have reached for it? Absence is a design decision.
+**What they chose NOT to do.** Engineering judgment is often visible in omissions as much as additions. What obvious feature is missing? What abstraction did they refuse to introduce? What dependency did they avoid, and what did that avoidance cost or preserve? Absence is a design decision.
 
-**The weird file.** Every interesting codebase has one file that doesn't quite fit — something that reveals the author's actual preoccupations rather than the stated purpose of the project. A utility that's way too sophisticated for its apparent purpose. A data structure that implies a future the author never shipped. A comment thread that reads like a philosophical argument with themselves. Find it.
+**The revealing artifact.** Look for a file, script, document, generated artifact, or test whose contents materially change how the codebase should be understood. It may be unusually detailed, stale, central despite looking peripheral, or inconsistent with the README. Explain what it reveals.
 
-**Commit history shape** *(if accessible)*. Is this a project built in a single obsessive burst, or one that shows sustained thinking over time? Do the commit messages suggest someone who knew where they were going, or someone who discovered the design by building it? Look for the moment the project changed direction — there is almost always one.
+**Commit history shape** *(if accessible)*. Is this a project built in a short concentrated period, or one that shows sustained thinking over time? Does the design direction appear planned upfront, discovered through implementation, or revised after specific failures? Look for the moment the project changed direction — there is almost always one.
 
-**The README as a window into the author's mind.** Not for the content — for the framing. What problem does the author *think* they solved? How do they describe the intended user? What do they emphasize that a marketing person would cut? What do they bury that a marketing person would lead with? The gap between what a thing *is* and how its author *describes it* is often where the most interesting material lives.
+**The README as public framing.** Not just for content — for the claims it foregrounds. What problem does the README say the project solves? How does it describe the intended user? What implementation details, constraints, or caveats does it understate? Where does the README align or diverge from the code? The gap between what a thing *is* and how its public framing describes it is often where the most useful material lives.
 
-**Borrowed ideas, transformed.** Almost nothing is truly original. But there is a difference between an author who copies a pattern and one who imports an idea from a completely different domain and applies it somewhere it doesn't quite belong — and makes it work anyway. Find the cross-domain import. Name its origin. Explain what was lost and gained in translation.
+**Borrowed ideas, transformed.** Almost nothing is truly original. But there is a difference between copying a pattern and adapting an idea to a different context, with identifiable gains and losses. Find the cross-domain import if one exists. Name its origin. Explain what was lost and gained in translation.
 
-**The signature move.** Most authors have one. A recurring structural choice, a preferred way of handling a specific class of problem, a stylistic habit that shows up across the codebase. The way they handle errors. The way they structure configuration. A peculiar preference for a certain level of indirection. Find it. It is the closest thing to a fingerprint.
+**Recurring design pattern.** Look for a structural choice that appears across the codebase: the way errors are handled, configuration is structured, indirection is introduced, or a specific class of problem is solved. Treat it as a pattern in the code, not as a personality trait.
 
 ---
 
 ### Output format
 
-Be direct and opinionated. "Interesting" is not a useful word here — say *why* it is interesting and to *whom*. Push past the obvious reading.
+Be direct and opinionated, but tie every strong judgment to a concrete file, function, data structure, workflow, or documented behavior. "Interesting" is not a useful word here — say *why* it is interesting and to *whom*. Push past the obvious reading.
 
 Produce two outputs:
 
 **Part A: Prose Analysis**
 
-**1. The Author's Mental Model** *(~300 words)*
-What problem do they think they're solving? This is not necessarily the same as what they wrote in the README. Reconstruct their actual theory of the problem from the evidence of the code.
+**1. The Codebase's Working Theory** *(~300 words)*
+What problem does the codebase appear organized to solve? This is not necessarily the same as what the README says. Reconstruct the system's actual theory of the problem from the evidence of the code.
 
 **2. The Central Abstraction** *(~300 words)*
 Name it. Locate it in the code. Assess it. Is it load-bearing? Is it the right one? What would the codebase look like if they had made a different choice here?
@@ -86,21 +86,21 @@ Name it. Locate it in the code. Assess it. Is it load-bearing? Is it the right o
 **3. Three Design Decisions Worth Examining**
 For each: what was the decision, what were the alternatives, what does the choice reveal about the author's priorities. Specific. File names, function names, data structure choices. Not vague gestures at "architecture."
 
-**4. The Weird File / The Unexpected Corner**
-Find the thing that doesn't quite fit. Describe it. Explain why it is there.
+**4. Revealing Artifact / Unexpected Evidence**
+Find the artifact that most changes or complicates the first-pass thesis. Describe it and explain what it reveals about the system.
 
-**5. What This Author Understands That Most Don't**
-One paragraph. The sharpest, most confident claim you can make about what insight this codebase embodies that is non-obvious. If you cannot make this claim confidently, say so and explain what is missing — that is also a finding.
+**5. Non-Obvious System Insight**
+One paragraph. The sharpest evidence-backed claim you can make about a non-obvious problem this codebase handles well. If you cannot make this claim confidently, say so and explain what is missing — that is also a finding.
 
-**6. Taste Verdict**
-Does this author have taste? What kind? Use a comparison if it helps — other authors, other projects, schools of thought in software design. Be willing to say it is ordinary. Be willing to say it is strange in an unproductive way. But if it is genuinely interesting, say exactly why.
+**6. Engineering Judgment Verdict**
+Where does the codebase show strong judgment, weak judgment, or uneven judgment? Use comparisons only when they clarify concrete tradeoffs. Be willing to say the judgment is ordinary, unusual and unproductive, or productive but uneven.
 
 **7. Confidence and Reading Conditions**
 A short, honest paragraph (not an open-ended reflection) addressing:
 - How much of the repo did you actually read versus skim?
 - Which sections of this analysis are you most confident in, and which are scaffolding?
 - What did you not have time or context to investigate that you suspect would matter? Keep this to your blind spots, concretely named.
-- If asked to defend the Taste Verdict against a smart reader who disagreed, where would you feel weakest?
+- Which judgment would be easiest to challenge, and what specific additional evidence would reduce that uncertainty?
 - What is the single smallest concrete file or document path that, if opened next, would most reduce your largest uncertainty? Say whether you are opening it now or leaving it open.
 
 This section is not optional. It is not a hedge. It is the document the later passes need in order to do their work.
@@ -155,8 +155,8 @@ pass_output:
 
 ### A note on tone
 
-Write like someone who has read a lot of code and has opinions about it. Not contemptuous. Not cheerleading. The posture is: *I am trying to understand what this person was thinking, and I will tell you what I actually find.*
+Write like someone who has read a lot of code and has opinions about it. Not contemptuous. Not cheerleading. Prefer precise technical nouns and verbs over metaphors, jokes, or critic-style labels. Use metaphor only when it compresses a real technical structure and does not replace evidence.
 
-If something is mediocre, say it plainly and move on. If something is genuinely surprising, dwell on it. The audience is a human curator who will read this carefully and ask sharper questions afterward — and downstream tools that will encounter pieces of this analysis later, in different contexts, and use them for purposes the analyzer cannot anticipate.
+If something is mediocre, say it plainly and move on. If something is genuinely surprising, explain the mechanism that makes it surprising. Do not infer personality traits when a design preference, operational priority, or code pattern is enough. The audience is a human curator who will read this carefully and ask sharper questions afterward — and downstream tools that will encounter pieces of this analysis later, in different contexts, and use them for purposes the analyzer cannot anticipate.
 
-Both audiences are served by the same discipline: tell the truth as you see it, mark where your sight is weak, and leave the next reader something to push against.
+Both audiences are served by the same discipline: tell the truth as you see it, mark where your sight is weak, and leave the next reader clear claims, evidence, and named uncertainties to test.

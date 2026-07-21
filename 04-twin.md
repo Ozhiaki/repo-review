@@ -21,22 +21,22 @@ intended_audience:
 
 ## Why this is a separate document
 
-The first three passes operate on the repo in isolation. Each one peels a different layer of self-deception:
+The first three passes operate on the repo in isolation. Each one tests a different limitation of single-repo analysis:
 
 - The First Read: the analyzer's first impression
 - The Discounted Artifact: the analyzer's coverage bias
-- The Trace: the repo's aesthetic overcredit
+- The Trace: whether a central claim is actually enforced
 
-What's left undefended is **the repo's apparent uniqueness.** A solo-read repo always looks more singular than it is. Authors think they're inventing things their domain peers also invented independently. Authors think they're departing from convention when they're following a quieter convention. Without comparison, taste judgments are unanchored — "this author has unusual taste" relative to *what reference distribution*?
+What's left undefended is **the repo's apparent uniqueness.** A solo-read repo often looks more singular than it is. Authors may build things their domain peers also built independently. Authors may think they are departing from convention when they are following a quieter convention. Without comparison, engineering-judgment claims are unanchored — unusual relative to *what comparison set*?
 
-The correction is to deliberately collide this repo against one *adjacent* repo — same problem space, different mental model — and let the comparison expose what a single-repo reading cannot:
+The correction is to compare this repo with one *adjacent* repo — same problem space, different organizing model — and let the comparison expose what a single-repo reading cannot:
 
 - Choices that look bold in isolation but are convention in the neighborhood
-- Choices that look conventional in isolation but are quietly heretical when you look around
-- Hidden lineage shared by both authors that neither names
-- Negative space the entire domain avoids, visible only in stereo
+- Choices that look conventional in isolation but are unusual in the shared domain
+- Shared lineage or assumptions neither repo names directly
+- Shared omissions visible only through comparison
 
-This must be separate from the prior passes. If the analyzer knows a comparison is coming, it will hedge isolation-judgments toward what it expects to compare. The diagnostic value of the earlier passes depends on each one being performed inside its own frame. This pass earns its place by being the first one that *deliberately* leaves the frame.
+This must be separate from the prior passes. If the analyzer knows a comparison is coming, it will hedge isolation judgments toward what it expects to compare. The diagnostic value of the earlier passes depends on each one being performed inside its own frame. This pass earns its place by being the first one that deliberately leaves the single-repo frame.
 
 ---
 
@@ -50,7 +50,7 @@ You will need to choose **the twin** before issuing this prompt. Selection guida
 
 ## Selecting the Twin
 
-The twin is not a peer benchmark. It is a chosen *opposition*. It must satisfy three constraints:
+The twin is a comparison repo selected to share domain terrain while differing in organizing model. It must satisfy three constraints:
 
 1. **Same problem terrain.** Both repos try to do something recognizably similar. Same domain, same general user, same general goals. If the twin doesn't share terrain, the comparison degenerates into "different things are different."
 
@@ -58,7 +58,7 @@ The twin is not a peer benchmark. It is a chosen *opposition*. It must satisfy t
 
 3. **Comparable maturity.** Both repos should be at roughly the same point in their lifecycle — toy vs toy, production vs production, research vs research. Comparing a maturing system to a sketch produces noise, not signal.
 
-Good twin pairs feel slightly uncomfortable to compare. The discomfort is the signal: it means the comparison is forcing both authors to defend choices they would rather treat as obvious.
+Good twin pairs create real contrast without leaving the shared problem space. The contrast is the signal: it forces choices that looked obvious in isolation to become explicit.
 
 Bad twin pairs feel either too easy ("they're basically the same") or too off-axis ("these aren't really comparable"). If the comparison feels either, pick a different twin.
 
@@ -100,25 +100,25 @@ State, explicitly:
 Record this in the `coverage_closure` block of the structured appendix. Then
 perform the comparison.
 
-### 1. Shared Heresy
+### 1. Shared Design Stance
 
 Identify one place where the focal repo and the twin **agree on something that the rest of their shared domain does not**.
 
 This is not a feature both repos have. It is a *commitment* both authors made that runs against the convention of their field. It might be:
 
 - An abstraction both refuse to introduce that competitors treat as essential
-- A primitive both treat as sacred that competitors treat as negotiable
+- A primitive both treat as central that competitors treat as negotiable
 - A failure mode both design for that competitors paper over
-- A user both authors take seriously that competitors patronize
+- A user or constraint both repos serve more directly than common alternatives
 - A constraint both honor that competitors route around
 
-Name the heresy precisely. Identify the artifacts in each repo where it is enforced. Then ask: do the two authors arrive at this shared heresy from the same reasoning, or from different reasoning that converges? The convergence path matters — independent arrival is stronger evidence of the heresy being correct than shared lineage.
+Name the shared design stance precisely. Identify the artifacts in each repo where it is enforced. Then ask: do the two repos arrive at this stance from the same reasoning, or from different reasoning that converges? The convergence path matters — independent arrival is stronger evidence that the stance fits the domain than shared lineage.
 
-### 2. Divergent Orthodoxy
+### 2. Divergent Design Choice
 
 Identify one place where the focal repo and the twin **make opposite choices on something the rest of their shared domain treats as settled**.
 
-The interesting case is not "they made different design decisions." Of course they did. The interesting case is when they make opposite decisions on a question the field has *stopped asking*. Both authors had to actively notice the settled question and actively choose a side. One of them is probably wrong. Which one, and why, reveals more about the focal repo's taste than any isolated reading can.
+The interesting case is not "they made different design decisions." Of course they did. The interesting case is when they make opposite decisions on a question the field has *stopped asking*. Both repos had to actively notice the settled question and actively choose a side. Assess which choice better serves the focal repo's stated goals and what that reveals about the focal repo's engineering judgment.
 
 For the divergence:
 - Name the settled question the field has stopped asking
@@ -126,31 +126,31 @@ For the divergence:
 - Identify the artifacts in each repo that enforce its choice
 - Make a verdict: which side does the focal repo's choice serve better, and is that the side the focal repo *thought* it was choosing?
 
-### 3. Hidden Lineage
+### 3. Shared Lineage
 
 Identify one upstream — a paper, a system, a tradition, a prior project, a school of thought — that **both repos draw from without naming**.
 
-The unnamed shared upstream is the most interesting kind of lineage. Named upstreams are easy: the authors cite them. Unnamed shared upstreams reveal the *water both authors are swimming in*. They expose the assumptions the authors have stopped seeing as choices.
+The unnamed shared upstream is the most interesting kind of lineage. Named upstreams are easy: the authors cite them. Unnamed shared upstreams reveal the shared assumptions or traditions both repos appear to draw from.
 
 If you can identify the upstream, name it. If you can identify only that *some* upstream is shared but cannot name it, describe its shape — what it must contain to produce the observed convergence.
 
 If no shared upstream is detectable, say so. But do not force this section. False lineage is worse than no lineage.
 
-### 4. Negative Space
+### 4. Shared Omission
 
 Identify one **choice neither repo made** that the rest of their shared domain considers obvious or inevitable.
 
-This is the comparison's most powerful axis. It is not what either repo did. It is what *both repos quietly refused to do* — and what that joint refusal says about the part of the problem space the entire domain is misunderstanding.
+This is the comparison's most powerful axis. It is not what either repo did. It is what *both repos omit or de-emphasize* — and what that shared omission suggests about the problem space.
 
-The signature of a real negative-space finding: when you describe it, the immediate reaction should be "wait, why doesn't either of them do that?" followed quickly by "...actually, I see why neither of them does." The second reaction is the finding.
+The signature of a real shared-omission finding: when you describe it, the immediate reaction should be "wait, why doesn't either of them do that?" followed quickly by "...actually, I see why neither of them does." The second reaction is the finding.
 
 ### 5. Re-verdict on the Focal Repo
 
 Given the four observations above, revise the prior analysis where the comparison changes the judgment.
 
-Be specific. Which earlier sections are sharper now? Which are softer? Which are refuted? Which originality claims survive contact with the twin? Which collapse?
+Be specific. Which earlier sections are sharper now? Which are softer? Which are refuted? Which originality claims remain supported after comparison? Which collapse?
 
-State plainly: after the twin pass, is the focal repo *more interesting* or *less interesting* than the prior analysis suggested? Is its taste *more distinctive* or *less distinctive*? Is its central abstraction *more load-bearing* or *more conventional*?
+State plainly: after the twin pass, which claims became more or less distinctive after comparison? Which design judgments became stronger, weaker, or unchanged? Is its central abstraction *more load-bearing* or *more conventional*?
 
 If the comparison changed nothing, say so — but apply the same discipline The Discounted Artifact demands: did the comparison actually run, or did you merely place the twin next to the focal repo and re-state the prior analysis?
 
@@ -169,23 +169,23 @@ Use this structure:
 **A. The Twin**
 Name the twin. State why this twin satisfies the three selection constraints (shared terrain, different mental model, comparable maturity). One paragraph.
 
-**B. Shared Heresy**
-Name the heresy. Locate it in both repos. Assess whether the convergence is independent or lineage-driven.
+**B. Shared Design Stance**
+Name the stance. Locate it in both repos. Assess whether the convergence is independent or lineage-driven.
 
-**C. Divergent Orthodoxy**
+**C. Divergent Design Choice**
 Name the settled question. Identify each side. Render a verdict.
 
-**D. Hidden Lineage**
+**D. Shared Lineage**
 Name the upstream, describe its shape, or state plainly that none was found.
 
-**E. Negative Space**
+**E. Shared Omission**
 Name the absent choice both repos refused. Articulate why the joint refusal is informative.
 
 **F. Re-verdict**
 Sharpen, soften, redirect, or refute the prior analysis. Be specific about which sections moved and how.
 
-**G. Twin-Crossed Observations**
-Pull out 2-4 short observations that are *only legible because the comparison exists*. A twin-crossed observation cannot be derived from either repo alone — it is a tension that requires both to express.
+**G. Comparison-Only Observations**
+Pull out 2-4 short observations that are *only visible when both repos are considered together*. A comparison-only observation cannot be derived from either repo alone — it is a tension that requires both to express.
 
 **Part B: Structured Appendix**
 
@@ -257,7 +257,7 @@ pass_output:
   twin_crossed_observations:
     - id: <short slug>
       text: |
-        <1-3 sentences, only legible in stereo>
+        <1-3 sentences, only visible when both repos are considered together>
   topic_tags: [<tag>, <tag>, ...]
   confidence:
     overall: <high | medium | low>
@@ -273,8 +273,8 @@ pass_output:
 
 ### A note on tone
 
-Resist the urge to declare a winner. The comparison's job is not to rank. It is to expose what isolation-reading cannot see. A repo can be *correct* in its choices and still be *less surprising* than the twin makes it look. A repo can be *surprising* and still be *less correct*. Hold both axes.
+Do not rank the repos unless the comparison specifically requires it. The comparison's job is to expose what isolation-reading cannot see. A repo can be *correct* in its choices and still be less unusual than the twin makes it look. A repo can be unusual and still serve its stated goals poorly. Hold both axes.
 
 The highest-value outcome is not "the focal repo is better than the twin" or "the focal repo is worse than the twin." The highest-value outcome is a precise answer to:
 
-> What is the focal repo's taste, *measured against a real distribution* rather than against the analyzer's prior expectations?
+> What is the focal repo's engineering judgment, measured against an explicit comparison set rather than against the analyzer's prior expectations?

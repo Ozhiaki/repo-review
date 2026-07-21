@@ -20,9 +20,9 @@ intended_audience:
 
 ## Why this is a separate document
 
-The First Read and The Discounted Artifact catch failures of *attention*. The First Read catches the analyzer's first impression. The Discounted Artifact catches the central artifact discount — the tendency to under-read the largest, strangest formal artifact in the repo.
+The First Read and The Discounted Artifact test limitations of first-pass coverage. The First Read captures the analyzer's first-pass thesis. The Discounted Artifact catches the tendency to under-read an artifact whose role later proves important to the analysis.
 
-This pass catches a failure of *credit*. Once the spine has been correctly identified, the next failure mode arrives: admiring the spine without checking whether it bears any weight. A repo can have a brilliant theory, an elegant vocabulary, a careful architecture doctrine, an ambitious invariant set — and still fail to connect any of it to executable enforcement. The aesthetic is real. The machinery is somewhere else, or nowhere.
+This pass checks whether a central claim is enforced by executable code, tests, workflow, or release process. A repo can have a strong theory, a careful vocabulary, or an ambitious invariant set and still fail to connect it to enforcement.
 
 The correction is to pick one obligation the repo treats as central and trace it from its most abstract statement to the place in the running code where it either holds or doesn't.
 
@@ -72,7 +72,7 @@ Before tracing anything, answer this honestly.
 
 Some repos are organized around a central claim the author cares about deeply — an invariant, a doctrine, a safety property, a behavioral guarantee. Those repos reward a trace.
 
-Other repos are not organized that way. They are collections, accumulations, utilities, scripts, demos, sketches, pedagogical artifacts, or working notebooks. Their interest is not philosophical. They have taste, but the taste is in selection, composition, or craft — not in any single load-bearing claim that machinery must enforce.
+Other repos are not organized that way. They are collections, accumulations, utilities, scripts, demos, sketches, pedagogical artifacts, or working notebooks. Their interest may lie in selection, composition, utility, or documentation rather than enforceable guarantees.
 
 If the repo has no load-bearing obligation, say so plainly and stop. Produce instead a one-paragraph statement of what the repo's interest *actually* is, since it is not philosophical enforcement. The series ends here for this repo. That is a real finding, not a failure.
 
@@ -84,7 +84,7 @@ Pick one claim that appears genuinely load-bearing after the v2 analysis. It sho
 
 **Do not pick the easiest claim to trace. Pick the claim whose truth matters most to the repo's identity.**
 
-The right claim often resists tracing on first attempt. That resistance is a feature, not a reason to choose differently.
+The right claim may be hard to trace on first attempt. If the claim is hard to trace, record where the trace breaks before choosing another claim.
 
 ### 3. Trace the obligation through six layers
 
@@ -108,8 +108,8 @@ Answer these directly:
 
 - **Enforcement quality.** Is the obligation enforced, partially enforced, aspirational, or incoherent?
 - **Same claim or substitute?** Does the implementation enforce the same claim the abstract layer makes, or a weaker substitute that the author has not noticed is weaker?
-- **Wise incompleteness or abandoned ambition?** If the obligation is partially fulfilled, is the gap *deferred* (the author knows, has reasons, would close it under the right conditions) or *abandoned* (the author wrote it, moved on, and the prose now overstates the system)? A deferred gap with a credible reason is a sign of taste, not failure. An abandoned gap is the central finding.
-- **What the trace reveals about taste.** What does this trace expose about the author's actual judgment that the v1 and v2 readings did not?
+- **Wise incompleteness or abandoned ambition?** If the obligation is partially fulfilled, is the gap *deferred* (the author knows, has reasons, would close it under the right conditions) or *abandoned* (the author wrote it, moved on, and the prose now overstates the system)? A deferred gap with a credible reason is not necessarily a defect. An abandoned gap is the central finding.
+- **What the trace reveals about engineering judgment.** What does this trace expose about the codebase's actual design discipline that the v1 and v2 readings did not?
 
 What is the smallest piece of evidence that would flip your verdict on deferred-versus-abandoned, or on same-claim-versus-substitute? If you have not looked for it, look now.
 
@@ -119,7 +119,7 @@ This is required. The trace is not a commentary on v2 — it is a revision of v2
 
 - **Restate the central abstraction in light of the trace.** If the trace confirms v2's choice, say so explicitly. If the trace shifts it, write the replacement central abstraction in full.
 - **Identify any v2 section whose judgment changes.** Name the section. State the change in one sentence per section. Sharper, softer, redirected, refuted.
-- **If nothing changes, say so plainly** — but apply the same discipline The Discounted Artifact demands: did the trace actually run, or did you re-skim the abstract layer and call it a trace?
+- **If nothing changes, say so plainly** — but state what evidence the trace actually checked.
 
 ---
 
@@ -143,7 +143,7 @@ Name the obligation in one sentence. Explain why you chose it over nearby candid
 Walk the obligation through the six layers. Use concrete file paths and names. Be specific. The trace is the document.
 
 **D. Verdict**
-Answer all four verdict questions directly. Do not hedge. The trace earns the right to a clear judgment.
+Answer all four verdict questions directly. Be clear. State the verdict and the evidence that supports it.
 
 **E. v2 Update**
 State the post-trace central abstraction (confirmed or replaced). List the v2 sections whose judgments shifted, with the direction of each shift.
@@ -272,10 +272,10 @@ Bad candidates, regardless of category:
 
 ### A note on tone
 
-The trace is high-stakes. Keep your voice.
+The trace should be direct and evidence-backed.
 
-Earlier passes establish what the analyzer thinks. The trace tests whether the repo earns it. A hedged voice in this pass wastes the test — every "perhaps" and "arguably" lets the analyzer dodge the verdict the trace was built to force.
+Earlier passes establish what the analyzer thinks. The trace tests whether the repo enforces the central claim those passes credited. Avoid unnecessary hedging, but preserve real uncertainty.
 
 Be opinionated. Make the opinion earn itself through the trace. The highest-value outcome is not "the repo is good" or "the repo is bad." The highest-value outcome is a precise, defensible answer to:
 
-> Does the discovered spine actually reach the bones?
+> Does the central claim have an enforceable path from statement to implementation, verification, and operation?
