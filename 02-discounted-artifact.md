@@ -180,6 +180,8 @@ pass_output:
 
 ### A note on tone
 
+If you have been given the repo-review Output Style Guide, follow it. It is standing prose guidance, not an extra analytical pass.
+
 The revised analysis should make the changed judgments visible. The audience — both the human curator and any downstream consumer of this analysis — benefits from seeing where a careful reader's first impression diverged from their second.
 
 If v1 was wrong, state the corrected claim and the evidence that changed it.

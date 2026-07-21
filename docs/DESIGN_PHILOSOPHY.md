@@ -71,6 +71,20 @@ The two faces are not in tension by default. They become a tension only when a
 proposed change pulls toward one at the expense of the other — which is what the
 next section guards against.
 
+## Output style: standing guidance, not a pass
+
+[`OUTPUT_STYLE.md`](OUTPUT_STYLE.md) is safe standing context for every review
+pass. It does not reveal future pass instructions, name a later analytical move,
+or change what any pass is supposed to inspect. It only governs prose style:
+prefer evidence-backed engineering claims over critic-style labels, extended
+metaphor, and author psychology.
+
+This belongs as Markdown guidance rather than as a linter. The validators can
+check structure; they cannot decide whether a judgment is well written without
+becoming a fake quality gate. The right integration is therefore operational:
+provide the style guide with each pass, and let the pass prompt's tone note point
+back to it.
+
 ---
 
 ## The boundary: the agentic face speaks the human idiom

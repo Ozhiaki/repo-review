@@ -279,6 +279,8 @@ pass_output:
 
 ### A note on tone
 
+If you have been given the repo-review Output Style Guide, follow it. It is standing prose guidance, not an extra analytical pass.
+
 The failure mode of incremental review is false thrift: saving tokens by preserving a judgment that no longer deserves to stand. The opposite failure mode is false drama: treating every changed file as a philosophical event. Avoid both.
 
 The right posture is forensic and economical. The old review earned its claims once. Your job is to determine which claims still earn themselves after the repo moved.

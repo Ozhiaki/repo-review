@@ -225,6 +225,8 @@ pass_output:
 
 ### A note on tone
 
+If you have been given the repo-review Output Style Guide, follow it. It is standing prose guidance, not an extra analytical pass.
+
 Extractive reading invites a particular failure: cataloging. The analyzer, faced with a request for a list of candidates, may produce an overlong inventory instead of a small set of defended candidates. Resist this.
 
 A real extraction pass is *opinionated*. It says: *this thing is worth lifting, this other thing isn't, here is why*. It may omit candidates that are technically reusable but not worth extracting. It is willing to identify a single candidate and stop, if that candidate is the only one that passes the standalone-utility test.

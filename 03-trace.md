@@ -272,6 +272,8 @@ Bad candidates, regardless of category:
 
 ### A note on tone
 
+If you have been given the repo-review Output Style Guide, follow it. It is standing prose guidance, not an extra analytical pass.
+
 The trace should be direct and evidence-backed.
 
 Earlier passes establish what the analyzer thinks. The trace tests whether the repo enforces the central claim those passes credited. Avoid unnecessary hedging, but preserve real uncertainty.

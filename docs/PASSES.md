@@ -18,7 +18,7 @@ The `catches` column is human prose and is not guarded.
 | synthesis | The Synthesis | 7 | first-read, discounted-artifact | — | prose-with-yaml-appendix | never | Optional composition of the first two passes into one current judgment |
 | trace | The Trace | 7 | first-read, discounted-artifact | — | prose-with-yaml-appendix | repo-has-no-load-bearing-obligation | Whether the repo's stated obligations are actually enforced by the running code |
 | twin | The Twin | 7 | first-read, discounted-artifact, trace | — | prose-with-yaml-appendix | never | What the repo's choices look like next to one adjacent repo with a different mental model |
-| lift | The Lift | 7 | first-read, discounted-artifact, trace | twin | prose-with-yaml-appendix | repo-yields-no-extractables | What can be torn off the repo and survive on its own |
+| lift | The Lift | 7 | first-read, discounted-artifact, trace | twin | prose-with-yaml-appendix | repo-yields-no-extractables | What can become useful as a standalone artifact |
 | delta-review | The Delta Review | 4 | first-read | discounted-artifact, synthesis, trace, twin, lift | prose-with-yaml-appendix | never | Which prior judgments need to move after the repo changes |
 
 Cell conventions (the guarded columns obey these exactly, so the lint can parse

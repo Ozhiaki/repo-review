@@ -273,6 +273,8 @@ pass_output:
 
 ### A note on tone
 
+If you have been given the repo-review Output Style Guide, follow it. It is standing prose guidance, not an extra analytical pass.
+
 Do not rank the repos unless the comparison specifically requires it. The comparison's job is to expose what isolation-reading cannot see. A repo can be *correct* in its choices and still be less unusual than the twin makes it look. A repo can be unusual and still serve its stated goals poorly. Hold both axes.
 
 The highest-value outcome is not "the focal repo is better than the twin" or "the focal repo is worse than the twin." The highest-value outcome is a precise answer to:

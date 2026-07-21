@@ -1,8 +1,11 @@
 # repo-review
 
-A series of prompts for producing deep, taste-oriented analyses of codebases.
+A series of prompts for producing deep, evidence-backed analyses of codebases.
 
-Not code reviews. Not security audits. Each pass interrogates a different layer of how the author thinks — what they take to be obvious, where their judgment shows up, what their machinery actually enforces, what survives when lifted out of context.
+Not code reviews. Not security audits. Each pass interrogates a different layer
+of the codebase's engineering judgment — what it treats as obvious, where its
+design choices show up, what its machinery actually enforces, what remains useful
+when lifted out of context.
 
 The series is designed to be run in order. Each pass is meant to be performed without knowing what later passes ask for. The diagnostic value of any single pass depends on the earlier passes being honest about their own blindness.
 
@@ -17,7 +20,7 @@ The series is designed to be run in order. Each pass is meant to be performed wi
 | 02.5 | The Synthesis | Optional composition of the first two passes into one current judgment |
 | 03 | The Trace | Whether the repo's stated obligations are actually enforced by the running code |
 | 04 | The Twin | What the repo's choices look like next to one adjacent repo with a different mental model |
-| 05 | The Lift | What can be torn off the repo and survive on its own |
+| 05 | The Lift | What can become useful as a standalone artifact |
 | 06 | The Delta Review | Which prior judgments need to move after the repo changes |
 
 See [`PASSES.md`](docs/PASSES.md) for the full map: every pass's version, prerequisites, early-stop condition, and a prerequisite DAG. The table above is an informal teaser; `PASSES.md` is drift-checked against the pass frontmatters.
@@ -36,13 +39,19 @@ Passes 03–05 each open with a **Coverage Closure** step: before the pass's own
 
 **Critical: present the passes to the analyzer one at a time.** Each pass shapes what the analyzer attends to. If later passes are visible while it's working on an earlier one, its direction gets polluted by anticipation of what's coming.
 
+Before the first pass, also give the analyzer [`OUTPUT_STYLE.md`](docs/OUTPUT_STYLE.md)
+as standing style guidance. It is safe to show for the whole review because it
+contains no future-pass instructions and does not change any pass's analytical
+scope. If a later pass runs in a fresh chat, provide the style guide again with
+that pass.
+
 1. Pick a repo worth thinking about.
-2. Give the analyzer **The First Read** only. Let it produce its full analysis.
+2. Give the analyzer **The First Read** only, plus the output style guide. Let it produce its full analysis.
 3. Give it **The Discounted Artifact**. It will revise the first read into v2.
 4. Optionally give it **The Synthesis** if you want a compact current account of passes 1 and 2 before moving on.
-5. Give it **The Trace**. It will produce a verdict on whether the spine reaches the bones — or terminate early if no load-bearing obligation exists.
+5. Give it **The Trace**. It will produce a verdict on whether the central claim has an enforceable path through the repo — or terminate early if no load-bearing obligation exists.
 6. Optionally give it **The Twin** with a chosen adjacent repo. The twin must satisfy three constraints (shared terrain, different mental model, comparable maturity). Selection guidance is in the pass itself.
-7. Optionally give it **The Lift** to surface extractable seeds — or terminate early if the repo is extraction-poor.
+7. Optionally give it **The Lift** to identify extractable candidates — or terminate early if the repo is extraction-poor.
 
 Each pass produces both prose (for the human curator) and a YAML appendix (for downstream tooling).
 
@@ -102,7 +111,7 @@ Two readers, served by the same discipline:
 - A human curator who reads the prose carefully and asks sharper questions afterward.
 - Downstream tools that consume the structured YAML output for purposes the analyzer cannot anticipate.
 
-The writing serves both: tell the truth as you see it, mark where your sight is weak, leave the next reader something to push against.
+The writing serves both: tell the truth as you see it, mark where your sight is weak, and leave the next reader clear claims, evidence, and named uncertainties to test. [`OUTPUT_STYLE.md`](docs/OUTPUT_STYLE.md) is the standing reference for this prose discipline.
 
 ---
 
@@ -121,6 +130,7 @@ repo-review/
 ├── DELTA_REVIEW_RUNBOOK.md
 ├── docs/                            # reference docs
 │   ├── DESIGN_PHILOSOPHY.md         #   why the project exists + the taste rules
+│   ├── OUTPUT_STYLE.md              #   standing prose guidance for generated outputs
 │   ├── PASSES.md                    #   drift-checked map of the series
 │   ├── STRUCTURED_OUTPUT_SCHEMA.md  #   the YAML appendix schema
 │   └── README.md                    #   index of this folder

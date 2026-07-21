@@ -6,7 +6,10 @@ you reach for when you need them.
 
 - **[DESIGN_PHILOSOPHY.md](DESIGN_PHILOSOPHY.md)** — why the project exists, the
   human value it delivers (a conversational partner primed on the target repo), and
-  the taste rules that govern what may be added to it.
+  the design rules that govern what may be added to it.
+- **[OUTPUT_STYLE.md](OUTPUT_STYLE.md)** — standing prose guidance for generated
+  repo-review outputs. Safe to provide with every pass because it contains no
+  future-pass instructions.
 - **[STRUCTURED_OUTPUT_SCHEMA.md](STRUCTURED_OUTPUT_SCHEMA.md)** — the schema for the
   YAML appendix every pass emits: source-state, confidence, coverage-closure, path
   fields, and the extraction marker.
