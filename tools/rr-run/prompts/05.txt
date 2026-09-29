@@ -1,0 +1,5 @@
+One pass left: {RR}/05-lift.md.
+Write your output to {ART}/05-lift.md.
+Put every file path in source_paths. In source_notes, write no file paths: name only symbols, headings or line ranges.
+In coverage_closure, when changed_prior_judgment is false, set shift_summary to null.
+Do not run the linter on your output.

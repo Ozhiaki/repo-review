@@ -1,0 +1,3 @@
+Your next set of instructions are here: {RR}/02.5-synthesis.md. Please write your output to the folder above the repo.
+Write your output to {ART}/02.5-synthesis.md.
+Do not run the linter on your output.

@@ -1,0 +1,3 @@
+Please read the instructions at {RR}/02-discounted-artifact.md and apply them to this repo. As last time, place your analysis above the repo.
+Write your output to {ART}/02-discounted-artifact.md.
+Do not run the linter on your output.

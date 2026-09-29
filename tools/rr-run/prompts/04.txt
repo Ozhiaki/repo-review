@@ -1,0 +1,4 @@
+Read your next instructions here: {RR}/04-twin.md. For this pass you need a tool to compare to. I don't have quite a twin. But you can search for a twin at Github or elsewhere. To study a candidate, clone it into {SCRATCH}. Do not delete {SCRATCH}; the script handles it.
+Write your output to {ART}/04-twin.md.
+In coverage_closure, when changed_prior_judgment is false, set shift_summary to null.
+Do not run the linter on your output.

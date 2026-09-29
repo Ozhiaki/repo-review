@@ -1,0 +1,4 @@
+I want you to read the instructions here: {RR}/01-first-read.md
+Please apply the instructions in this file to the {REPO} repo.
+Write your output to {ART}/01-first-read.md.
+Do not run the linter on your output.
