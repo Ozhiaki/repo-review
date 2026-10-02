@@ -2,6 +2,8 @@
 
 `rr-run.sh` runs passes 01 to 05 on one target repo, in one Claude session, one pass at a time. It uses [gashki](https://github.com/Ozhiaki/gashki) to start the agent in a tmux pane, send each pass prompt and wait for the turn to end. After the last pass, the pane stays open. The human then talks with the same agent.
 
+> Development of rr-run has moved to its own project, where a Go rewrite is planned. This Bash script stays here until the Go version replaces it. It is no longer under active development.
+
 ## Run
 
 From a pane inside tmux:
