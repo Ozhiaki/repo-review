@@ -16,3 +16,10 @@ you reach for when you need them.
 - **[PASSES.md](PASSES.md)** — the drift-checked map of the series: every pass's
   version, prerequisites, early-stop condition, and a prerequisite DAG. Kept in sync
   with the template frontmatters by `tools/lint_pass_map.py`.
+
+- **[PREPASS.md](PREPASS.md)** — the optional Prepared Review method.
+- **[PREPASS_WORKFLOW.md](PREPASS_WORKFLOW.md)** — source preparation, current-pass handoff, and recovery.
+- **[PREPASS_SETUP.md](PREPASS_SETUP.md)** — local tool manifests and terminal acceptance.
+- **[PREPASS_HOST.md](PREPASS_HOST.md)** — MCP connection and host delivery confirmation.
+- **[PREPASS_EVIDENCE.md](PREPASS_EVIDENCE.md)** — the evaluated design, source records, costs, and limits.
+- **[PREPASS_PROVENANCE.md](PREPASS_PROVENANCE.md)** — promoted file identities and integration scope.

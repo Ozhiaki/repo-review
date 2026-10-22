@@ -15,3 +15,19 @@ jobs:
       - run: python3 tests/run_fixture_coverage_meta_test.py
       - run: python3 tools/lint_pass_map.py
       - run: python3 tests/run_pass_map_lint_tests.py
+  prepared-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: false
+      - run: python3 -m pip install tiktoken==0.12.0
+      - run: python3 tests/run_prepared_source_tests.py
+      - run: python3 tests/run_prepared_review_tests.py
+      - run: python3 tests/run_prepared_review_robustness_tests.py
+      - run: python3 tests/run_prepared_workflow_tests.py

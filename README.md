@@ -35,6 +35,19 @@ Passes 03–05 each open with a **Coverage Closure** step: before the pass's own
 
 ---
 
+## Choose a review method
+
+The existing procedure below is **Direct Review**. It needs no prepass.
+
+**Prepared Review** is an optional path. It supplies mechanical facts before
+analysis, with indexed lookup and question-based source reads. It uses the
+same analytical prompts and output schema. Method, agent, model, and reasoning
+setting remain separate choices. Different useful findings are expected.
+
+Start with the [Prepared Review guide](docs/PREPASS.md). Its [setup](docs/PREPASS_SETUP.md)
+and [workflow](docs/PREPASS_WORKFLOW.md) explain the local tools and current-pass
+handoff. Preparation starts no model and runs no subject program.
+
 ## How to run a review
 
 **Critical: present the passes to the analyzer one at a time.** Each pass shapes what the analyzer attends to. If later passes are visible while it's working on an earlier one, its direction gets polluted by anticipation of what's coming.
@@ -135,6 +148,7 @@ repo-review/
 │   ├── STRUCTURED_OUTPUT_SCHEMA.md  #   the YAML appendix schema
 │   └── README.md                    #   index of this folder
 ├── tools/                           # stdlib linters (templates, outputs, pass-map)
+│   └── prepass/                     #   Prepared Review source preparation
 ├── tests/                           # fixtures + lint harnesses
 └── reviews/                         # individual repo analyses
 ```

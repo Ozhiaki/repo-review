@@ -1,0 +1,748 @@
+{
+  "id": "go-process-spawn",
+  "language": "Go",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = exec.Command($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = exec.CommandContext($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "id": "go-file-write-delete",
+  "language": "Go",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.WriteFile($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.Create($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.Remove($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.RemoveAll($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.Rename($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "id": "go-network",
+  "language": "Go",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = http.Get($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = http.Post($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = http.NewRequest($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = http.NewRequestWithContext($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = net.Dial($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "id": "go-deserialize",
+  "language": "Go",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = json.Unmarshal($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = yaml.Unmarshal($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "id": "go-env-input",
+  "language": "Go",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.Getenv($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      },
+      {
+        "pattern": {
+          "context": "package main\nfunc __prepass__() { _ = os.LookupEnv($$$ARGS) }",
+          "selector": "call_expression"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-process-spawn",
+  "language": "Python",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "subprocess.run($$$ARGS)"
+      },
+      {
+        "pattern": "subprocess.Popen($$$ARGS)"
+      },
+      {
+        "pattern": "subprocess.check_output($$$ARGS)"
+      },
+      {
+        "pattern": "subprocess.check_call($$$ARGS)"
+      },
+      {
+        "pattern": "subprocess.call($$$ARGS)"
+      },
+      {
+        "pattern": "os.system($$$ARGS)"
+      },
+      {
+        "pattern": "os.popen($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-file-write-delete",
+  "language": "Python",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "$X.write_text($$$ARGS)"
+      },
+      {
+        "pattern": "$X.write_bytes($$$ARGS)"
+      },
+      {
+        "pattern": "$X.unlink($$$ARGS)"
+      },
+      {
+        "pattern": "shutil.rmtree($$$ARGS)"
+      },
+      {
+        "pattern": "shutil.move($$$ARGS)"
+      },
+      {
+        "pattern": "shutil.copy($$$ARGS)"
+      },
+      {
+        "pattern": "os.remove($$$ARGS)"
+      },
+      {
+        "pattern": "os.unlink($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-network",
+  "language": "Python",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "requests.get($$$ARGS)"
+      },
+      {
+        "pattern": "requests.post($$$ARGS)"
+      },
+      {
+        "pattern": "requests.put($$$ARGS)"
+      },
+      {
+        "pattern": "requests.delete($$$ARGS)"
+      },
+      {
+        "pattern": "urllib.request.urlopen($$$ARGS)"
+      },
+      {
+        "pattern": "httpx.get($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-deserialize",
+  "language": "Python",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "json.loads($$$ARGS)"
+      },
+      {
+        "pattern": "json.load($$$ARGS)"
+      },
+      {
+        "pattern": "pickle.loads($$$ARGS)"
+      },
+      {
+        "pattern": "pickle.load($$$ARGS)"
+      },
+      {
+        "pattern": "yaml.load($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-env-input",
+  "language": "Python",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "os.getenv($$$ARGS)"
+      },
+      {
+        "pattern": "os.environ.get($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "python-eval-dynamic-load",
+  "language": "Python",
+  "message": "Review lead: eval-dynamic-load",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "eval($$$ARGS)"
+      },
+      {
+        "pattern": "exec($$$ARGS)"
+      },
+      {
+        "pattern": "__import__($$$ARGS)"
+      },
+      {
+        "pattern": "importlib.import_module($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-process-spawn",
+  "language": "JavaScript",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "child_process.execSync($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.execFile($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.spawn($$$ARGS)"
+      },
+      {
+        "pattern": "execSync($$$ARGS)"
+      },
+      {
+        "pattern": "execFile($$$ARGS)"
+      },
+      {
+        "pattern": "spawn($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-file-write-delete",
+  "language": "JavaScript",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fs.writeFileSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.writeFile($$$ARGS)"
+      },
+      {
+        "pattern": "fs.unlinkSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.renameSync($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-network",
+  "language": "JavaScript",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fetch($$$ARGS)"
+      },
+      {
+        "pattern": "axios.get($$$ARGS)"
+      },
+      {
+        "pattern": "axios.post($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-deserialize",
+  "language": "JavaScript",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "JSON.parse($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-env-input",
+  "language": "JavaScript",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "process.env.$KEY"
+      },
+      {
+        "pattern": "process.env[$KEY]"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "javascript-eval-dynamic-load",
+  "language": "JavaScript",
+  "message": "Review lead: eval-dynamic-load",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "eval($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "rust-process-spawn",
+  "language": "Rust",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "std::process::Command::new($$$ARGS)"
+      },
+      {
+        "pattern": "Command::new($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "rust-file-write-delete",
+  "language": "Rust",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "std::fs::write($$$ARGS)"
+      },
+      {
+        "pattern": "fs::write($$$ARGS)"
+      },
+      {
+        "pattern": "fs::remove_file($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "rust-network",
+  "language": "Rust",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "reqwest::get($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "rust-deserialize",
+  "language": "Rust",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "serde_json::from_str($$$ARGS)"
+      },
+      {
+        "pattern": "serde_json::from_slice($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "rust-env-input",
+  "language": "Rust",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "std::env::var($$$ARGS)"
+      },
+      {
+        "pattern": "env::var($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-process-spawn",
+  "language": "TypeScript",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "child_process.execSync($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.execFile($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.spawn($$$ARGS)"
+      },
+      {
+        "pattern": "execSync($$$ARGS)"
+      },
+      {
+        "pattern": "execFile($$$ARGS)"
+      },
+      {
+        "pattern": "spawn($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-file-write-delete",
+  "language": "TypeScript",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fs.writeFileSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.writeFile($$$ARGS)"
+      },
+      {
+        "pattern": "fs.unlinkSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.renameSync($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-network",
+  "language": "TypeScript",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fetch($$$ARGS)"
+      },
+      {
+        "pattern": "axios.get($$$ARGS)"
+      },
+      {
+        "pattern": "axios.post($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-deserialize",
+  "language": "TypeScript",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "JSON.parse($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-env-input",
+  "language": "TypeScript",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "process.env.$KEY"
+      },
+      {
+        "pattern": "process.env[$KEY]"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "typescript-eval-dynamic-load",
+  "language": "TypeScript",
+  "message": "Review lead: eval-dynamic-load",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "eval($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-process-spawn",
+  "language": "Tsx",
+  "message": "Review lead: process-spawn",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "child_process.execSync($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.execFile($$$ARGS)"
+      },
+      {
+        "pattern": "child_process.spawn($$$ARGS)"
+      },
+      {
+        "pattern": "execSync($$$ARGS)"
+      },
+      {
+        "pattern": "execFile($$$ARGS)"
+      },
+      {
+        "pattern": "spawn($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-file-write-delete",
+  "language": "Tsx",
+  "message": "Review lead: file-write-delete",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fs.writeFileSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.writeFile($$$ARGS)"
+      },
+      {
+        "pattern": "fs.unlinkSync($$$ARGS)"
+      },
+      {
+        "pattern": "fs.renameSync($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-network",
+  "language": "Tsx",
+  "message": "Review lead: network",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "fetch($$$ARGS)"
+      },
+      {
+        "pattern": "axios.get($$$ARGS)"
+      },
+      {
+        "pattern": "axios.post($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-deserialize",
+  "language": "Tsx",
+  "message": "Review lead: deserialize",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "JSON.parse($$$ARGS)"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-env-input",
+  "language": "Tsx",
+  "message": "Review lead: env-input",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "process.env.$KEY"
+      },
+      {
+        "pattern": "process.env[$KEY]"
+      }
+    ]
+  }
+}
+---
+{
+  "id": "tsx-eval-dynamic-load",
+  "language": "Tsx",
+  "message": "Review lead: eval-dynamic-load",
+  "severity": "hint",
+  "rule": {
+    "any": [
+      {
+        "pattern": "eval($$$ARGS)"
+      }
+    ]
+  }
+}
